@@ -47,6 +47,7 @@ class Sidebar(ctk.CTkFrame):
                 text_color="#E5E7EB",
                 command=lambda b=label: self.set_active(b),
             )
+            btn._label = label
             btn.grid(row=idx, column=0, padx=14, pady=6, sticky="ew")
             self.menu_buttons.append(btn)
 
