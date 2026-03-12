@@ -5,11 +5,11 @@ from typing import Deque
 import customtkinter as ctk
 from tkinter import Canvas
 
-from view.charts import LineChart
-from view.sidebar import Sidebar
-from view.materials import MaterialsPage
-from view.tests import TemperatureTestsPage
-from view.database_page import DatabasePage
+from .charts import LineChart
+from .sidebar import Sidebar
+from .materials import MaterialsPage
+from .tests import TemperatureTestsPage
+from .database_page import DatabasePage
 
 
 BG = "#0D1117"
