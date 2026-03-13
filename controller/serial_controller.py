@@ -1,6 +1,7 @@
 import random
 from typing import Callable
 
+#responsavel por ler o esp32 
 
 class SerialController:
     def __init__(self, on_temperature: Callable[[float], None], interval_ms: int = 500) -> None:

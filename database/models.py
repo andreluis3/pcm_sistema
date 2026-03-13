@@ -1,7 +1,22 @@
-class Material:
+import sqlite3
+from pathlib import Path
 
-    def __init__(self, name, melting_point, latent_heat, expected_efficiency):
-        self.name = name
-        self.melting_point = melting_point
-        self.latent_heat = latent_heat
-        self.expected_efficiency = expected_efficiency
+DB_PATH = Path(__file__).parent / "pcmdata.db"
+
+
+def create_user_table():
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    conn.commit()
+    conn.close()

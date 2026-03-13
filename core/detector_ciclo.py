@@ -1,18 +1,25 @@
 class CycleDetector:
 
-    def __init__(self, ponto_de_fusao):
-        self.ponto_de_fusao = ponto_de_fusao
-        self.estado = "solido"
-        self.cycle_count = 0
+    def __init__(self):
 
-    def update(self, temperature):
+        self.buffer = []
+        self.cycle_active = False
 
-        if self.estado == "solido" and temperature > self.ponto_de_fusao:
-            self.estado = "melting"
+    def add_temperature(self, temp):
 
-        elif self.estado == "melting" and temperature < self.ponto_de_fusao:
-            self.estado = "solido"
-            self.cycle_count += 1
-            return True
+        self.buffer.append(temp)
 
-        return False
+        if len(self.buffer) < 5:
+            return None
+
+        t1 = self.buffer[-1]
+        t2 = self.buffer[-2]
+
+        if t1 > t2:
+            trend = "rising"
+        elif t1 < t2:
+            trend = "falling"
+        else:
+            trend = "stable"
+
+        return trend

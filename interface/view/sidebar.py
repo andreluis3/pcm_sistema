@@ -1,18 +1,19 @@
 import customtkinter as ctk
 
+from .widgets import BotaoSidebar
+
 
 class Sidebar(ctk.CTkFrame):
-    def __init__(self, parent, bg_color: str) -> None:
-        super().__init__(parent, fg_color=bg_color)
+    def __init__(self, parent, ao_selecionar) -> None:
+        super().__init__(parent, fg_color="#15181F")
         self._expanded_width = 220
         self._collapsed_width = 80
         self._is_expanded = True
         self._animating = False
-        self._active = None
 
         self.configure(width=self._expanded_width)
         self.grid_propagate(False)
-        self.grid_rowconfigure(6, weight=1)
+        self.grid_rowconfigure(8, weight=1)
 
         self.toggle_btn = ctk.CTkButton(
             self,
@@ -29,30 +30,23 @@ class Sidebar(ctk.CTkFrame):
 
         self.menu_buttons = []
         items = [
-            ("Dashboard", "📊"),
-            ("Materials", "🧪"),
-            ("Temperature Tests", "🌡"),
-            ("Database", "🗄"),
-            ("Settings", "⚙"),
+            ("dashboard", "📊  Dashboard"),
+            ("sensor", "🛰  Sensor"),
+            ("medicao", "✍  Medição Manual"),
+            ("materiais", "🧪  Materiais"),
+            ("experimentos", "🧫  Experimentos"),
+            ("banco", "🗄  Banco de Dados"),
+            ("exportar", "📤  Exportar Dados"),
         ]
-        for idx, (label, icon) in enumerate(items, start=1):
-            btn = ctk.CTkButton(
-                self,
-                text=f"{icon}  {label}",
-                anchor="w",
-                height=48,
-                corner_radius=14,
-                fg_color="#161B22",
-                hover_color="#1E2530",
-                text_color="#E5E7EB",
-                command=lambda b=label: self.set_active(b),
-            )
-            btn._label = label
+
+        for idx, (key, label) in enumerate(items, start=1):
+            btn = BotaoSidebar(self, label, comando=lambda k=key: ao_selecionar(k))
+            btn._page_key = key
             btn.grid(row=idx, column=0, padx=14, pady=6, sticky="ew")
             self.menu_buttons.append(btn)
 
         self.profile = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=16)
-        self.profile.grid(row=7, column=0, padx=12, pady=16, sticky="ew")
+        self.profile.grid(row=9, column=0, padx=12, pady=16, sticky="ew")
         self.profile.grid_columnconfigure(1, weight=1)
 
         self.avatar = ctk.CTkLabel(
@@ -73,23 +67,18 @@ class Sidebar(ctk.CTkFrame):
 
         self.user_role = ctk.CTkLabel(
             self.profile,
-            text="PCM Research",
+            text="Usuário de Pesquisa",
             text_color="#9AA0AB",
             font=ctk.CTkFont(size=11),
         )
         self.user_role.grid(row=1, column=1, sticky="w", padx=(0, 12), pady=(0, 12))
 
-        self.set_active("Dashboard")
+        self.set_active("dashboard")
         self.grid_columnconfigure(0, weight=1)
 
-    def set_active(self, label: str) -> None:
-        self._active = label
+    def set_active(self, key: str) -> None:
         for btn in self.menu_buttons:
-            is_active = label in btn.cget("text")
-            btn.configure(
-                fg_color="#18212B" if is_active else "#161B22",
-                text_color="#00F5D4" if is_active else "#E5E7EB",
-            )
+            btn.set_ativo(getattr(btn, "_page_key", "") == key)
 
     def toggle(self) -> None:
         if self._animating:
@@ -124,4 +113,4 @@ class Sidebar(ctk.CTkFrame):
                 self.user_role.configure(text="")
             else:
                 self.user_name.configure(text="André")
-                self.user_role.configure(text="PCM Research")
+                self.user_role.configure(text="Usuário de Pesquisa")
