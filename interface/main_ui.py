@@ -10,6 +10,7 @@ from .view.database_page import DatabasePage
 from .view.export_page import ExportPage
 
 from services.sensor_service import SensorService  # Versão modular com callback
+from database.database_manager import DatabaseManager
 
 
 class MainUI(ctk.CTk):
@@ -30,6 +31,9 @@ class MainUI(ctk.CTk):
         # === SensorService modular com callback para atualizar status ===
         self.sensor_service = SensorService(self.update_status)
         self.sensor_service.start(self)  # self = root, necessário para after()
+
+        # === Banco de dados ===
+        self.db_manager = DatabaseManager()
 
         # === Mostra a tela de login ===
         self.show_login()
@@ -97,6 +101,9 @@ class MainUI(ctk.CTk):
         if page_class is None:
             return
 
-        self._current_page = page_class(self.content)
+        try:
+            self._current_page = page_class(self.content, db_manager=self.db_manager)
+        except TypeError:
+            self._current_page = page_class(self.content)
         self._current_page.grid(row=0, column=0, sticky="nsew")
         self.sidebar.set_active(page_name)
