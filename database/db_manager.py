@@ -12,40 +12,33 @@ class DatabaseManager:
 
     def create_tables(self):
         self.cursor.execute("""
-        CREATE TABLE IF NOT EXISTS temperature_data (
+        CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            temperature REAL
+            username TEXT NOT NULL
         )
         """)
 
+
         self.cursor.execute("""
-        CREATE TABLE IF NOT EXISTS cycles (
+            CREATE TABLE IF NOT EXISTS experiments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+
             start_time DATETIME,
             end_time DATETIME,
-            max_temp REAL,
-            min_temp REAL
-        )
-        """)
+            delta_time REAL,
 
-        self.conn.commit()
+            initial_temperature REAL,
+            fusion_temperature REAL,
+            delta_temperature REAL,
 
-    def insert_temperature(self, temp):
+            massa REAL,
+            capsula TEXT,
+            data_de_experimento DATE,
+            operador TEXT,
+            calor_latente REAL,
+            calor_sensivel REAL,
+            energia_armazenada REAL,
+            eficiencia REAL
+        """);
 
-        self.cursor.execute("""
-        INSERT INTO temperature_data (temperature)
-        VALUES (?)
-        """, (temp,))
-
-        self.conn.commit()
-
-    def get_last_temperatures(self, limit=100):
-
-        self.cursor.execute("""
-        SELECT temperature FROM temperature_data
-        ORDER BY id DESC
-        LIMIT ?
-        """, (limit,))
-
-        return [row[0] for row in self.cursor.fetchall()]
+self.conn.commit()

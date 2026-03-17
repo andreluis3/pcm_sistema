@@ -1,10 +1,10 @@
 import customtkinter as ctk
 from .view.login_page import LoginPage
 from .view.sidebar import Sidebar
-from .view.dashboard import DashboardPage
+from ui.dashboard_view import DashboardPage
 from .view.sensor_page import SensorPage
 from .view.manual_measurement import ManualMeasurementPage
-from .view.materials import MaterialsPage
+from ui.materials_view import MaterialsView
 from .view.experiments import ExperimentsPage
 from .view.database_page import DatabasePage
 from .view.export_page import ExportPage
@@ -66,7 +66,7 @@ class MainUI(ctk.CTk):
             "dashboard": DashboardPage,
             "sensor": SensorPage,
             "medicao": ManualMeasurementPage,
-            "materiais": MaterialsPage,
+            "materiais": MaterialsView,
             "experimentos": ExperimentsPage,
             "banco": DatabasePage,
             "exportar": ExportPage,
