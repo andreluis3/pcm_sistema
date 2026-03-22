@@ -1,6 +1,7 @@
 import customtkinter as ctk
 
 from .widgets import BotaoSidebar
+from ui_styles import FONT_TITLE, SECTION_PAD_Y
 
 
 class Sidebar(ctk.CTkFrame):
@@ -18,23 +19,24 @@ class Sidebar(ctk.CTkFrame):
         self.toggle_btn = ctk.CTkButton(
             self,
             text="≡",
-            width=44,
-            height=44,
+            width=48,
+            height=48,
             corner_radius=14,
             fg_color="#161B22",
             hover_color="#1E2530",
             text_color="#E5E7EB",
+            font=FONT_TITLE,
             command=self.toggle,
         )
-        self.toggle_btn.grid(row=0, column=0, padx=16, pady=16, sticky="w")
+        self.toggle_btn.grid(row=0, column=0, padx=16, pady=SECTION_PAD_Y, sticky="w")
 
         self.menu_buttons = []
         items = [
             ("dashboard", "📊  Dashboard"),
             ("sensor", "🛰  Sensor"),
-            ("medicao", "✍  Medição Manual"),
             ("materiais", "🧪  Materiais"),
             ("experimentos", "🧫  Experimentos"),
+            ("calculos", "🧮  Cálculos Térmicos"),
             ("banco", "🗄  Banco de Dados"),
             ("exportar", "📤  Exportar Dados"),
         ]
@@ -42,7 +44,7 @@ class Sidebar(ctk.CTkFrame):
         for idx, (key, label) in enumerate(items, start=1):
             btn = BotaoSidebar(self, label, comando=lambda k=key: ao_selecionar(k))
             btn._page_key = key
-            btn.grid(row=idx, column=0, padx=14, pady=6, sticky="ew")
+            btn.grid(row=idx, column=0, padx=14, pady=8, sticky="ew")
             self.menu_buttons.append(btn)
 
         self.profile = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=16)

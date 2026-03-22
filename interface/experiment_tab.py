@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Callable
 
 import customtkinter as ctk
@@ -8,40 +9,34 @@ from tkinter import messagebox
 
 from database.database_manager import DatabaseManager
 
+DATE_FORMAT = "%d-%m-%y %H:%M"
+
 
 @dataclass
 class ExperimentFormData:
     material: str | None = None
+    operador: str | None = None
+    capsula: str | None = None
+    massa: float | None = None
     tempo_inicio: str | None = None
-    end_time: str | None = None
-    delta_time: float | None = None
+    tempo_final: str | None = None
+    delta_tempo: float | None = None
     temperatura_inicial: float | None = None
     temperatura_final: float | None = None
     delta_temperatura: float | None = None
-    massa: float | None = None
-    capsula: str | None = None
-    operador: str | None = None
-    calor_latente: float | None = None
-    calor_sensivel: float | None = None
-    energia_armazenada: float | None = None
-    eficiencia: float | None = None
 
     def as_db_dict(self) -> dict[str, Any]:
         return {
             "material": self.material,
+            "operador": self.operador,
+            "capsula": self.capsula,
+            "massa": self.massa,
             "tempo_inicio": self.tempo_inicio,
-            "end_time": self.end_time,
-            "delta_time": self.delta_time,
+            "tempo_final": self.tempo_final,
+            "delta_tempo": self.delta_tempo,
             "temperatura_inicial": self.temperatura_inicial,
             "temperatura_final": self.temperatura_final,
             "delta_temperatura": self.delta_temperatura,
-            "massa": self.massa,
-            "capsula": self.capsula,
-            "operador": self.operador,
-            "calor_latente": self.calor_latente,
-            "calor_sensivel": self.calor_sensivel,
-            "energia_armazenada": self.energia_armazenada,
-            "eficiencia": self.eficiencia,
         }
 
 
@@ -78,16 +73,12 @@ class ExperimentTab(ctk.CTkFrame):
         row = self._field(form, row, "operador", "Operador", "Ex.: André")
         row = self._field(form, row, "capsula", "Cápsula", "Ex.: A1")
         row = self._field(form, row, "massa", "Massa (g)", "Ex.: 120")
-        row = self._field(form, row, "tempo_inicio", "Tempo início (ISO)", "2026-03-17 10:00:00")
-        row = self._field(form, row, "end_time", "Tempo fim (ISO)", "2026-03-17 10:05:00")
-        row = self._field(form, row, "delta_time", "Δ tempo (s)", "Ex.: 300")
+        row = self._field(form, row, "tempo_inicio", "Tempo início (DD-MM-YY HH:MM)", "21-03-26 14:32")
+        row = self._field(form, row, "tempo_final", "Tempo final (DD-MM-YY HH:MM)", "21-03-26 14:52")
+        row = self._field(form, row, "delta_tempo", "Δ tempo (min)", "Calculado automaticamente", disabled=True)
         row = self._field(form, row, "temperatura_inicial", "Temperatura inicial (°C)", "Ex.: 24.0")
         row = self._field(form, row, "temperatura_final", "Temperatura final (°C)", "Ex.: 42.0")
-        row = self._field(form, row, "delta_temperatura", "Δ temperatura (°C)", "Ex.: 18.0")
-        row = self._field(form, row, "calor_latente", "Calor latente (J)", "Ex.: 12000")
-        row = self._field(form, row, "calor_sensivel", "Calor sensível (J)", "Ex.: 5000")
-        row = self._field(form, row, "energia_armazenada", "Energia armazenada (J)", "Ex.: 17000")
-        row = self._field(form, row, "eficiencia", "Eficiência (%)", "Ex.: 85")
+        row = self._field(form, row, "delta_temperatura", "Δ temperatura (°C)", "Calculado automaticamente", disabled=True)
 
         actions = ctk.CTkFrame(form, fg_color="transparent")
         actions.grid(row=row, column=0, columnspan=2, sticky="w", padx=16, pady=(8, 16))
@@ -114,11 +105,23 @@ class ExperimentTab(ctk.CTkFrame):
         )
         self.btn_clear.grid(row=0, column=1)
 
-    def _field(self, parent, row: int, key: str, label: str, placeholder: str) -> int:
+    def _field(
+        self,
+        parent,
+        row: int,
+        key: str,
+        label: str,
+        placeholder: str,
+        disabled: bool = False,
+    ) -> int:
         lbl = ctk.CTkLabel(parent, text=label, text_color="#9AA0AB", font=ctk.CTkFont(size=12))
         lbl.grid(row=row, column=0, sticky="w", padx=16, pady=(12 if row == 0 else 0, 6))
         entry = ctk.CTkEntry(parent, placeholder_text=placeholder)
         entry.grid(row=row, column=1, sticky="ew", padx=16, pady=(12 if row == 0 else 0, 12))
+        if disabled:
+            entry.configure(state="disabled")
+        else:
+            entry.bind("<KeyRelease>", lambda _e: self._recompute_deltas())
         self._entries[key] = entry
         return row + 1
 
@@ -136,26 +139,27 @@ class ExperimentTab(ctk.CTkFrame):
             raise ValueError(f"Valor inválido para '{key}': {value!r}")
 
     def get_form_data(self) -> ExperimentFormData:
+        delta_tempo = self._get_float("delta_tempo")
+        delta_temperatura = self._get_float("delta_temperatura")
         return ExperimentFormData(
             material=self._get_str("material"),
+            operador=self._get_str("operador"),
+            capsula=self._get_str("capsula"),
+            massa=self._get_float("massa"),
             tempo_inicio=self._get_str("tempo_inicio"),
-            end_time=self._get_str("end_time"),
-            delta_time=self._get_float("delta_time"),
+            tempo_final=self._get_str("tempo_final"),
+            delta_tempo=delta_tempo,
             temperatura_inicial=self._get_float("temperatura_inicial"),
             temperatura_final=self._get_float("temperatura_final"),
-            delta_temperatura=self._get_float("delta_temperatura"),
-            massa=self._get_float("massa"),
-            capsula=self._get_str("capsula"),
-            operador=self._get_str("operador"),
-            calor_latente=self._get_float("calor_latente"),
-            calor_sensivel=self._get_float("calor_sensivel"),
-            energia_armazenada=self._get_float("energia_armazenada"),
-            eficiencia=self._get_float("eficiencia"),
+            delta_temperatura=delta_temperatura,
         )
 
     def clear_form(self) -> None:
         for entry in self._entries.values():
+            entry.configure(state="normal")
             entry.delete(0, "end")
+        for key in ("delta_tempo", "delta_temperatura"):
+            self._entries[key].configure(state="disabled")
         self._editing_id = None
         self.btn_save.configure(text="Salvar Experimento")
 
@@ -169,11 +173,15 @@ class ExperimentTab(ctk.CTkFrame):
             value = experiment[key]
             if value is None:
                 continue
+            entry.configure(state="normal")
             entry.insert(0, str(value))
+            if key in ("delta_tempo", "delta_temperatura"):
+                entry.configure(state="disabled")
 
         self.btn_save.configure(text=f"Salvar Alterações (ID {self._editing_id})")
 
     def save_experiment(self) -> None:
+        self._recompute_deltas()
         try:
             data = self.get_form_data().as_db_dict()
         except ValueError as e:
@@ -182,6 +190,20 @@ class ExperimentTab(ctk.CTkFrame):
 
         if not data.get("material"):
             messagebox.showwarning("Campos obrigatórios", "Informe o material.", parent=self.winfo_toplevel())
+            return
+        if not data.get("tempo_inicio") or not data.get("tempo_final"):
+            messagebox.showwarning("Campos obrigatórios", "Informe tempo início e tempo final.", parent=self.winfo_toplevel())
+            return
+
+        try:
+            self._parse_datetime(data["tempo_inicio"])
+            self._parse_datetime(data["tempo_final"])
+        except ValueError:
+            messagebox.showerror(
+                "Formato inválido",
+                f"Use o formato {DATE_FORMAT.replace('%d', 'DD').replace('%m', 'MM').replace('%y', 'YY').replace('%H', 'HH').replace('%M', 'MM')}.",
+                parent=self.winfo_toplevel(),
+            )
             return
 
         try:
@@ -208,3 +230,45 @@ class ExperimentTab(ctk.CTkFrame):
         if self.on_saved is not None:
             self.on_saved()
 
+    def _parse_datetime(self, value: str | None) -> datetime:
+        if not value:
+            raise ValueError("Data vazia.")
+        return datetime.strptime(value, DATE_FORMAT)
+
+    def _recompute_deltas(self) -> None:
+        tempo_inicio = self._get_str("tempo_inicio")
+        tempo_final = self._get_str("tempo_final")
+        temperatura_inicial = self._get_str("temperatura_inicial")
+        temperatura_final = self._get_str("temperatura_final")
+
+        delta_tempo_value = None
+        delta_temp_value = None
+
+        if tempo_inicio and tempo_final:
+            try:
+                dt_inicio = self._parse_datetime(tempo_inicio)
+                dt_final = self._parse_datetime(tempo_final)
+                delta_minutes = (dt_final - dt_inicio).total_seconds() / 60.0
+                delta_tempo_value = round(delta_minutes, 2)
+            except ValueError:
+                delta_tempo_value = None
+
+        if temperatura_inicial and temperatura_final:
+            try:
+                delta_temp_value = round(
+                    float(temperatura_final.replace(",", ".")) - float(temperatura_inicial.replace(",", ".")),
+                    2,
+                )
+            except ValueError:
+                delta_temp_value = None
+
+        self._set_disabled_field("delta_tempo", delta_tempo_value)
+        self._set_disabled_field("delta_temperatura", delta_temp_value)
+
+    def _set_disabled_field(self, key: str, value: float | None) -> None:
+        entry = self._entries[key]
+        entry.configure(state="normal")
+        entry.delete(0, "end")
+        if value is not None:
+            entry.insert(0, str(value))
+        entry.configure(state="disabled")
