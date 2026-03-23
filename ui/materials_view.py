@@ -1,5 +1,15 @@
 import customtkinter as ctk
 
+from ui_styles import (
+    FONT_HEADER,
+    FONT_TITLE,
+    FONT_NORMAL,
+    FONT_SMALL,
+    PAD_SMALL,
+    PAD_NORMAL,
+    PAD_LARGE,
+)
+
 
 class _InfoCard(ctk.CTkFrame):
     def __init__(self, parent, title: str, value: str, description: str) -> None:
@@ -10,27 +20,27 @@ class _InfoCard(ctk.CTkFrame):
             self,
             text=title,
             text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=FONT_NORMAL,
         )
-        title_label.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 2))
+        title_label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, 2))
 
         value_label = ctk.CTkLabel(
             self,
             text=value,
             text_color="#E2E8F0",
-            font=ctk.CTkFont(family="IBM Plex Mono", size=22, weight="bold"),
+            font=FONT_TITLE,
         )
-        value_label.grid(row=1, column=0, sticky="w", padx=16)
+        value_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE)
 
         desc_label = ctk.CTkLabel(
             self,
             text=description,
             text_color="#6B7280",
-            font=ctk.CTkFont(size=11),
+            font=FONT_SMALL,
             wraplength=220,
             justify="left",
         )
-        desc_label.grid(row=2, column=0, sticky="w", padx=16, pady=(4, 12))
+        desc_label.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(4, PAD_NORMAL))
 
 
 class MaterialsView(ctk.CTkFrame):
@@ -40,7 +50,7 @@ class MaterialsView(ctk.CTkFrame):
         self.grid_rowconfigure(0, weight=1)
 
         container = ctk.CTkScrollableFrame(self, fg_color="#0B0F14")
-        container.grid(row=0, column=0, sticky="nsew", padx=16, pady=16)
+        container.grid(row=0, column=0, sticky="nsew", padx=PAD_LARGE, pady=PAD_LARGE)
         container.grid_columnconfigure(0, weight=1)
 
         self._build_header(container)
@@ -57,35 +67,35 @@ class MaterialsView(ctk.CTkFrame):
 
     def _build_header(self, parent) -> None:
         header = self._section_frame(parent)
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 16))
+        header.grid(row=0, column=0, sticky="ew", pady=(0, PAD_LARGE))
 
         title = ctk.CTkLabel(
             header,
             text="Material PCM: Cera de Coco",
             text_color="#E2E8F0",
-            font=ctk.CTkFont(family="IBM Plex Sans", size=22, weight="bold"),
+            font=FONT_HEADER,
         )
-        title.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 4))
+        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
         subtitle = ctk.CTkLabel(
             header,
             text="Propriedades termofísicas e aplicação em gerenciamento térmico de eletrônicos",
             text_color="#A0AEC0",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
         )
-        subtitle.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 16))
+        subtitle.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
 
     def _build_description(self, parent) -> None:
         block = self._section_frame(parent)
-        block.grid(row=1, column=0, sticky="ew", pady=(0, 16))
+        block.grid(row=1, column=0, sticky="ew", pady=(0, PAD_LARGE))
 
         label = ctk.CTkLabel(
             block,
             text="Descrição científica",
             text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=FONT_TITLE,
         )
-        label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
+        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
         text = (
             "A cera de coco é um material orgânico derivado do óleo de coco, "
@@ -104,27 +114,27 @@ class MaterialsView(ctk.CTkFrame):
             block,
             text=text,
             text_color="#CBD5F5",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
             wraplength=880,
             justify="left",
         )
-        body.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 16))
+        body.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
 
     def _build_properties(self, parent) -> None:
         frame = self._section_frame(parent)
-        frame.grid(row=2, column=0, sticky="ew", pady=(0, 16))
+        frame.grid(row=2, column=0, sticky="ew", pady=(0, PAD_LARGE))
         frame.grid_columnconfigure(0, weight=1)
 
         label = ctk.CTkLabel(
             frame,
             text="Propriedades termofísicas",
             text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=FONT_TITLE,
         )
-        label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
+        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
         cards = ctk.CTkFrame(frame, fg_color="transparent")
-        cards.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 10))
+        cards.grid(row=1, column=0, sticky="ew", padx=PAD_NORMAL, pady=(0, PAD_SMALL))
         for col in range(3):
             cards.grid_columnconfigure(col, weight=1)
 
@@ -165,7 +175,7 @@ class MaterialsView(ctk.CTkFrame):
         col = 0
         for title, value, desc in data:
             card = _InfoCard(cards, title, value, desc)
-            card.grid(row=row, column=col, sticky="nsew", padx=8, pady=8)
+            card.grid(row=row, column=col, sticky="nsew", padx=PAD_SMALL, pady=PAD_SMALL)
             col += 1
             if col == 3:
                 col = 0
@@ -178,23 +188,23 @@ class MaterialsView(ctk.CTkFrame):
                 "para PCMs à base de óleo de coco, dependendo da composição e do processamento."
             ),
             text_color="#64748B",
-            font=ctk.CTkFont(size=11),
+            font=FONT_SMALL,
             wraplength=860,
             justify="left",
         )
-        note.grid(row=2, column=0, sticky="w", padx=20, pady=(0, 16))
+        note.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
 
     def _build_conductivity(self, parent) -> None:
         frame = self._section_frame(parent)
-        frame.grid(row=3, column=0, sticky="ew", pady=(0, 16))
+        frame.grid(row=3, column=0, sticky="ew", pady=(0, PAD_LARGE))
 
         label = ctk.CTkLabel(
             frame,
             text="Condutividade térmica",
             text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=FONT_TITLE,
         )
-        label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
+        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
         text = (
             "PCMs orgânicos possuem baixa condutividade térmica, o que pode limitar a "
@@ -207,23 +217,23 @@ class MaterialsView(ctk.CTkFrame):
             frame,
             text=text,
             text_color="#CBD5F5",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
             wraplength=880,
             justify="left",
         )
-        body.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 16))
+        body.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
 
     def _build_applications(self, parent) -> None:
         frame = self._section_frame(parent)
-        frame.grid(row=4, column=0, sticky="ew", pady=(0, 16))
+        frame.grid(row=4, column=0, sticky="ew", pady=(0, PAD_LARGE))
 
         label = ctk.CTkLabel(
             frame,
             text="Aplicações em eletrônica",
             text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=FONT_TITLE,
         )
-        label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
+        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
         text = (
             "A cera de coco pode ser integrada ao resfriamento de CPUs e eletrônicos de potência "
@@ -236,11 +246,11 @@ class MaterialsView(ctk.CTkFrame):
             frame,
             text=text,
             text_color="#CBD5F5",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
             wraplength=880,
             justify="left",
         )
-        body.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 16))
+        body.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
 
     def _build_sustainability(self, parent) -> None:
         frame = self._section_frame(parent)
@@ -251,12 +261,12 @@ class MaterialsView(ctk.CTkFrame):
             frame,
             text="Sustentabilidade",
             text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=FONT_TITLE,
         )
-        label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
+        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
         cards = ctk.CTkFrame(frame, fg_color="transparent")
-        cards.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 16))
+        cards.grid(row=1, column=0, sticky="ew", padx=PAD_NORMAL, pady=(0, PAD_LARGE))
         for col in range(3):
             cards.grid_columnconfigure(col, weight=1)
 
@@ -280,4 +290,4 @@ class MaterialsView(ctk.CTkFrame):
 
         for col, (title, value, desc) in enumerate(data):
             card = _InfoCard(cards, title, value, desc)
-            card.grid(row=0, column=col, sticky="nsew", padx=8, pady=8)
+            card.grid(row=0, column=col, sticky="nsew", padx=PAD_SMALL, pady=PAD_SMALL)

@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -265,6 +266,60 @@ class DatabaseManager:
             ORDER BY datetime(date_created) DESC, id DESC
         """
         return list(self.conn.execute(sql, params).fetchall())
+
+    def search_experiments_flexible(self, query: str) -> list[sqlite3.Row]:
+        q = (query or "").strip()
+        if not q:
+            return self.list_experiments()
+
+        like = f"%{q}%"
+        date_patterns = self._build_date_like_patterns(q)
+
+        clauses = [
+            "operador LIKE ?",
+            "material LIKE ?",
+            "capsula LIKE ?",
+            "CAST(id AS TEXT) LIKE ?",
+        ]
+        params: list[Any] = [like, like, like, like]
+
+        for pattern in date_patterns:
+            clauses.append("date_created LIKE ?")
+            params.append(pattern)
+
+        where_sql = " OR ".join(clauses)
+        sql = f"""
+            SELECT * FROM experiments
+            WHERE {where_sql}
+            ORDER BY datetime(date_created) DESC, id DESC
+        """
+        return list(self.conn.execute(sql, params).fetchall())
+
+    @staticmethod
+    def _build_date_like_patterns(value: str) -> list[str]:
+        patterns: list[str] = [f"%{value}%"]
+
+        try:
+            parsed = datetime.strptime(value, "%d-%m-%y")
+            patterns.append(f"%{parsed.strftime('%Y-%m-%d')}%")
+        except ValueError:
+            pass
+
+        if len(value) == 5 and value[2] == "-":
+            day, month = value.split("-")
+            if day.isdigit() and month.isdigit():
+                patterns.append(f"%-{month.zfill(2)}-{day.zfill(2)}%")
+
+        if value.isdigit() and len(value) <= 2:
+            patterns.append(f"%-{value.zfill(2)}%")
+
+        seen = set()
+        unique: list[str] = []
+        for pattern in patterns:
+            if pattern not in seen:
+                seen.add(pattern)
+                unique.append(pattern)
+        return unique
 
     def insert_thermal_calculation(self, data: dict[str, Any]) -> int:
         keys = [k for k in data.keys() if k in EXPECTED_THERMAL_CALC_COLUMNS and k not in {"id", "date_created"}]

@@ -6,6 +6,7 @@ import customtkinter as ctk
 
 from .charts import LineChart
 from .widgets import CardInformacao, LabelStatus
+from ui_styles import FONT_HEADER, FONT_SMALL, PAD_SMALL, PAD_NORMAL, PAD_LARGE
 
 
 class DashboardPage(ctk.CTkFrame):
@@ -23,14 +24,14 @@ class DashboardPage(ctk.CTkFrame):
 
     def _build_layout(self) -> None:
         header = ctk.CTkFrame(self, fg_color="#0D1117")
-        header.grid(row=0, column=0, sticky="ew", padx=16, pady=(6, 10))
+        header.grid(row=0, column=0, sticky="ew", padx=PAD_LARGE, pady=(6, PAD_NORMAL))
         header.grid_columnconfigure(1, weight=1)
 
         titulo = ctk.CTkLabel(
             header,
             text="Dashboard",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=22, weight="bold"),
+            font=FONT_HEADER,
         )
         titulo.grid(row=0, column=0, sticky="w")
 
@@ -40,14 +41,14 @@ class DashboardPage(ctk.CTkFrame):
             status_frame,
             text="Status do Sensor:",
             text_color="#9AA0AB",
-            font=ctk.CTkFont(size=12),
+            font=FONT_SMALL,
         )
-        status_label.grid(row=0, column=0, padx=(16, 6), pady=10)
+        status_label.grid(row=0, column=0, padx=(PAD_LARGE, 6), pady=PAD_SMALL)
         self.status = LabelStatus(status_frame, "CONECTADO", "#00C853")
-        self.status.grid(row=0, column=1, padx=(0, 16), pady=10)
+        self.status.grid(row=0, column=1, padx=(0, PAD_LARGE), pady=PAD_SMALL)
 
         cards = ctk.CTkFrame(self, fg_color="#0D1117")
-        cards.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 12))
+        cards.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
         cards.grid_columnconfigure(0, weight=1)
         cards.grid_columnconfigure(1, weight=1)
 
@@ -58,11 +59,11 @@ class DashboardPage(ctk.CTkFrame):
         self.card_tempo.grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
         chart_card = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=18)
-        chart_card.grid(row=2, column=0, sticky="nsew", padx=16, pady=(0, 12))
+        chart_card.grid(row=2, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
         chart_card.grid_columnconfigure(0, weight=1)
 
         self.grafico = LineChart(chart_card, "Gráfico de Temperatura", cor="#00F5D4")
-        self.grafico.widget.grid(row=0, column=0, sticky="nsew", padx=14, pady=14)
+        self.grafico.widget.grid(row=0, column=0, sticky="nsew", padx=PAD_NORMAL, pady=PAD_NORMAL)
 
     def _update_loop(self) -> None:
         self._temperatura += random.uniform(-0.6, 0.8)

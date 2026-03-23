@@ -7,6 +7,17 @@ from tkinter import messagebox, ttk
 from database.database_manager import DatabaseManager
 from interface.database_tab import DatabaseTab
 from ui.materials_view import MaterialsView
+from ui_styles import (
+    FONT_HEADER,
+    FONT_TITLE,
+    FONT_NORMAL,
+    FONT_SMALL,
+    FONT_TEMP,
+    WIDGET_HEIGHT_NORMAL,
+    PAD_SMALL,
+    PAD_NORMAL,
+    PAD_LARGE,
+)
 
 
 @dataclass
@@ -94,9 +105,9 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
             self,
             text="Cálculos Térmicos",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=22, weight="bold"),
+            font=FONT_HEADER,
         )
-        title.grid(row=0, column=0, sticky="w", padx=24, pady=(10, 14))
+        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_NORMAL))
 
         self.create_calculos_frame()
         self.load_experiment_data()
@@ -106,7 +117,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
     def create_calculos_frame(self) -> None:
         self._configure_ttk_style()
         body = ctk.CTkFrame(self, fg_color="transparent")
-        body.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 20))
+        body.grid(row=1, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_LARGE))
         body.grid_columnconfigure(0, weight=1)
         body.grid_rowconfigure(2, weight=1)
 
@@ -119,7 +130,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
     # --- Painéis ---------------------------------------------------------
     def _build_selection_panel(self, parent) -> None:
         panel = ctk.CTkFrame(parent, fg_color="#141A22", corner_radius=18)
-        panel.grid(row=0, column=0, sticky="ew", pady=(0, 14))
+        panel.grid(row=0, column=0, sticky="ew", pady=(0, PAD_NORMAL))
         panel.grid_columnconfigure(1, weight=1)
         panel.grid_columnconfigure(3, weight=1)
 
@@ -127,71 +138,71 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
             panel,
             text="1️⃣ Seleção do experimento",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=FONT_TITLE,
         )
-        title.grid(row=0, column=0, columnspan=4, sticky="w", padx=18, pady=(14, 8))
+        title.grid(row=0, column=0, columnspan=4, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
-        exp_label = ctk.CTkLabel(panel, text="Selecionar Experimento", text_color="#9AA0AB", font=ctk.CTkFont(size=12))
-        exp_label.grid(row=1, column=0, sticky="w", padx=18, pady=(0, 6))
+        exp_label = ctk.CTkLabel(panel, text="Selecionar Experimento", text_color="#9AA0AB", font=FONT_NORMAL)
+        exp_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
         self.experiment_combo = ttk.Combobox(panel, state="readonly", values=["Carregando..."])
-        self.experiment_combo.grid(row=2, column=0, columnspan=2, sticky="ew", padx=18, pady=(0, 14))
+        self.experiment_combo.grid(row=2, column=0, columnspan=2, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
         self.experiment_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_experiment_selected())
 
-        calc_label = ctk.CTkLabel(panel, text="Tipo de cálculo", text_color="#9AA0AB", font=ctk.CTkFont(size=12))
-        calc_label.grid(row=1, column=2, sticky="w", padx=18, pady=(0, 6))
+        calc_label = ctk.CTkLabel(panel, text="Tipo de cálculo", text_color="#9AA0AB", font=FONT_NORMAL)
+        calc_label.grid(row=1, column=2, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
         self.calc_type = ctk.StringVar(value="Energia Absorvida")
         self.calc_combo = ttk.Combobox(panel, state="readonly", values=list(CALCULATION_DEFS.keys()), textvariable=self.calc_type)
-        self.calc_combo.grid(row=2, column=2, columnspan=2, sticky="ew", padx=18, pady=(0, 14))
+        self.calc_combo.grid(row=2, column=2, columnspan=2, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
         self.calc_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_calc_selected())
         if self.calc_combo["values"]:
             self.calc_combo.current(0)
 
     def _build_explanation_panel(self, parent) -> None:
         panel = ctk.CTkFrame(parent, fg_color="#101722", corner_radius=18)
-        panel.grid(row=1, column=0, sticky="ew", pady=(0, 14))
+        panel.grid(row=1, column=0, sticky="ew", pady=(0, PAD_NORMAL))
         panel.grid_columnconfigure(0, weight=1)
 
         title = ctk.CTkLabel(
             panel,
             text="2️⃣ Como este cálculo funciona",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=FONT_TITLE,
         )
-        title.grid(row=0, column=0, sticky="w", padx=18, pady=(14, 6))
+        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
         self.formula_label = ctk.CTkLabel(
             panel,
             text="",
             text_color="#00FFFF",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=FONT_TITLE,
             justify="left",
         )
-        self.formula_label.grid(row=1, column=0, sticky="w", padx=18, pady=(0, 6))
+        self.formula_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
         self.where_label = ctk.CTkLabel(
             panel,
             text="",
             text_color="#C5D1DE",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
             justify="left",
         )
-        self.where_label.grid(row=2, column=0, sticky="w", padx=18)
+        self.where_label.grid(row=2, column=0, sticky="w", padx=PAD_LARGE)
 
         self.explain_label = ctk.CTkLabel(
             panel,
             text="",
             text_color="#9AA0AB",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
             justify="left",
             wraplength=680,
         )
-        self.explain_label.grid(row=3, column=0, sticky="w", padx=18, pady=(6, 14))
+        self.explain_label.grid(row=3, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_NORMAL))
 
     def _build_input_panel(self, parent) -> None:
         panel = ctk.CTkFrame(parent, fg_color="#141A22", corner_radius=18)
-        panel.grid(row=2, column=0, sticky="nsew", pady=(0, 14))
+        panel.grid(row=2, column=0, sticky="nsew", pady=(0, PAD_NORMAL))
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_columnconfigure(1, weight=1)
 
@@ -199,9 +210,9 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
             panel,
             text="3️⃣ Dados do cálculo",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=FONT_TITLE,
         )
-        title.grid(row=0, column=0, columnspan=2, sticky="w", padx=18, pady=(14, 10))
+        title.grid(row=0, column=0, columnspan=2, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
         self._inputs_frame = ctk.CTkFrame(panel, fg_color="transparent")
         self._inputs_frame.grid(row=1, column=0, columnspan=2, sticky="ew")
@@ -209,56 +220,58 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
 
     def _build_result_panel(self, parent) -> None:
         panel = ctk.CTkFrame(parent, fg_color="#101722", corner_radius=18)
-        panel.grid(row=3, column=0, sticky="ew", pady=(0, 14))
+        panel.grid(row=3, column=0, sticky="ew", pady=(0, PAD_NORMAL))
         panel.grid_columnconfigure(1, weight=1)
 
         title = ctk.CTkLabel(
             panel,
             text="4️⃣ Resultado",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=FONT_TITLE,
         )
-        title.grid(row=0, column=0, columnspan=2, sticky="w", padx=18, pady=(14, 8))
+        title.grid(row=0, column=0, columnspan=2, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
         self.result_label = ctk.CTkLabel(
             panel,
             text="Resultado: --",
             text_color="#00FFFF",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=FONT_TITLE,
         )
-        self.result_label.grid(row=1, column=0, sticky="w", padx=18, pady=(0, 4))
+        self.result_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
         self.result_hint = ctk.CTkLabel(
             panel,
             text="Este valor representa a energia térmica armazenada no material.",
             text_color="#9AA0AB",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
         )
-        self.result_hint.grid(row=2, column=0, sticky="w", padx=18, pady=(0, 12))
+        self.result_hint.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
 
         actions = ctk.CTkFrame(panel, fg_color="transparent")
-        actions.grid(row=1, column=1, rowspan=2, sticky="e", padx=18, pady=(0, 12))
+        actions.grid(row=1, column=1, rowspan=2, sticky="e", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
 
         self.calculate_btn = ctk.CTkButton(
             actions,
             text="CALCULAR",
             corner_radius=12,
-            height=40,
+            height=WIDGET_HEIGHT_NORMAL,
             fg_color="#2563EB",
             text_color="#E5E7EB",
             hover_color="#1D4ED8",
+            font=FONT_NORMAL,
             command=self.calculate_energy,
         )
-        self.calculate_btn.grid(row=0, column=0, padx=(0, 0), pady=(0, 8))
+        self.calculate_btn.grid(row=0, column=0, padx=(0, 0), pady=(0, PAD_SMALL))
 
         self.save_btn = ctk.CTkButton(
             actions,
             text="SALVAR CÁLCULO",
             corner_radius=12,
-            height=40,
+            height=WIDGET_HEIGHT_NORMAL,
             fg_color="#16A34A",
             text_color="#E5E7EB",
             hover_color="#15803D",
+            font=FONT_NORMAL,
             command=self.save_calculation,
         )
         self.save_btn.grid(row=1, column=0)
@@ -272,9 +285,9 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
             panel,
             text="Passo a passo",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=FONT_TITLE,
         )
-        title.grid(row=0, column=0, sticky="w", padx=18, pady=(12, 6))
+        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
         guide = ctk.CTkLabel(
             panel,
@@ -285,10 +298,10 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
                 "4️⃣ Salve o cálculo para análise futura"
             ),
             text_color="#9AA0AB",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
             justify="left",
         )
-        guide.grid(row=1, column=0, sticky="w", padx=18, pady=(0, 12))
+        guide.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
 
     # --- Dados ------------------------------------------------------------
     def load_experiment_data(self) -> None:
@@ -329,10 +342,15 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
 
         row = 0
         for field in definition["fields"]:
-            lbl = ctk.CTkLabel(self._inputs_frame, text=field.label, text_color="#9AA0AB", font=ctk.CTkFont(size=12))
-            lbl.grid(row=row, column=0, sticky="w", padx=18, pady=(8, 6))
-            entry = ctk.CTkEntry(self._inputs_frame, placeholder_text=field.placeholder)
-            entry.grid(row=row, column=1, sticky="ew", padx=18, pady=(8, 6))
+            lbl = ctk.CTkLabel(self._inputs_frame, text=field.label, text_color="#9AA0AB", font=FONT_NORMAL)
+            lbl.grid(row=row, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_SMALL))
+            entry = ctk.CTkEntry(
+                self._inputs_frame,
+                placeholder_text=field.placeholder,
+                height=WIDGET_HEIGHT_NORMAL,
+                font=FONT_NORMAL,
+            )
+            entry.grid(row=row, column=1, sticky="ew", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_SMALL))
             self._entries[field.key] = entry
             row += 1
 
@@ -493,7 +511,7 @@ class ThermalCalculationsPage(ctk.CTkFrame):
         self._on_calculation_saved = on_calculation_saved
 
         header = ctk.CTkFrame(self, fg_color="#0D1117")
-        header.grid(row=0, column=0, sticky="ew", padx=16, pady=(6, 0))
+        header.grid(row=0, column=0, sticky="ew", padx=PAD_LARGE, pady=(PAD_SMALL, 0))
         header.grid_columnconfigure(0, weight=1)
         header.grid_columnconfigure(1, weight=0)
         header.grid_columnconfigure(2, weight=0)
@@ -501,21 +519,25 @@ class ThermalCalculationsPage(ctk.CTkFrame):
         open_btn = ctk.CTkButton(
             header,
             text="Abrir em nova janela",
+            height=WIDGET_HEIGHT_NORMAL,
             corner_radius=12,
             fg_color="#1E2530",
             text_color="#E5E7EB",
             hover_color="#2A3341",
+            font=FONT_NORMAL,
             command=self._open_window,
         )
-        open_btn.grid(row=0, column=2, sticky="e", padx=(8, 0))
+        open_btn.grid(row=0, column=2, sticky="e", padx=(PAD_SMALL, 0))
 
         db_btn = ctk.CTkButton(
             header,
             text="Consultar Banco de Dados",
+            height=WIDGET_HEIGHT_NORMAL,
             corner_radius=12,
             fg_color="#1E2530",
             text_color="#E5E7EB",
             hover_color="#2A3341",
+            font=FONT_NORMAL,
             command=self.open_database_window,
         )
         db_btn.grid(row=0, column=1, sticky="e")

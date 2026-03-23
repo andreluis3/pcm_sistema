@@ -10,6 +10,7 @@ from .view.thermal_calculations_page import ThermalCalculationsPage
 
 from services.sensor_service import SensorService  # Versão modular com callback
 from database.database_manager import DatabaseManager
+from ui_styles import FONT_SMALL, PAD_LARGE, PAD_NORMAL
 
 
 class MainUI(ctk.CTk):
@@ -50,7 +51,7 @@ class MainUI(ctk.CTk):
 
         # Área de conteúdo
         self.content = ctk.CTkFrame(self, fg_color="#0D1117")
-        self.content.grid(row=0, column=1, sticky="nsew", padx=16, pady=16)
+        self.content.grid(row=0, column=1, sticky="nsew", padx=PAD_LARGE, pady=PAD_LARGE)
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(0, weight=1)
 
@@ -62,9 +63,9 @@ class MainUI(ctk.CTk):
             self.status_bar,
             text=f"Sensor: Desconectado | Usuário: {self.username} | Banco: Ativo",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=12)
+            font=FONT_SMALL
         )
-        self.status_label.pack(padx=16, pady=8)
+        self.status_label.pack(padx=PAD_LARGE, pady=PAD_NORMAL)
 
         # Páginas do sistema
         self.pages = {

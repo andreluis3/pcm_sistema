@@ -1,12 +1,10 @@
 import customtkinter as ctk
 
 from ui_styles import (
-    BUTTON_HEIGHT,
     FONT_NORMAL,
-    FONT_SIDEBAR,
-    FONT_SUBTITLE,
+    FONT_TITLE,
     FONT_TEMP,
-    SIDEBAR_BUTTON_HEIGHT,
+    WIDGET_HEIGHT_LARGE,
 )
 
 
@@ -26,7 +24,7 @@ class CardInformacao(ctk.CTkFrame):
             self,
             text=titulo,
             text_color="#9AA0AB",
-            font=FONT_NORMAL,
+            font=FONT_TITLE,
         )
         self.titulo.grid(row=0, column=0, sticky="w", padx=16, pady=(14, 4))
 
@@ -50,7 +48,7 @@ class LabelStatus(ctk.CTkLabel):
             parent,
             text=texto,
             text_color=cor,
-            font=FONT_SUBTITLE,
+            font=FONT_NORMAL,
         )
 
 
@@ -60,12 +58,12 @@ class BotaoSidebar(ctk.CTkButton):
             parent,
             text=texto,
             anchor="w",
-            height=SIDEBAR_BUTTON_HEIGHT,
+            height=WIDGET_HEIGHT_LARGE,
             corner_radius=14,
             fg_color="#161B22",
             hover_color="#1E2530",
             text_color="#E5E7EB",
-            font=FONT_SIDEBAR,
+            font=FONT_NORMAL,
             command=comando,
         )
 

@@ -1,64 +1,93 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import customtkinter as ctk
-from tkinter import ttk
+from PIL import Image
+import tkinter as tk
+
+from ui_styles import FONT_NORMAL, PAD_SMALL, PAD_LARGE, THEME_COLORS
 
 
 class LoadingScreen(ctk.CTk):
-    def __init__(self, duration_ms: int = 2500) -> None:
+    def __init__(self, duration_ms: int = 2000) -> None:
         super().__init__()
 
         self._duration_ms = duration_ms
+        self._pulse_radius = 16
+        self._pulse_dir = 1
 
-        self.title("PCM Thermal Manager")
-        self.geometry("520x320")
-        self.configure(fg_color="#0D1117")
+        self.title("ThermalManager")
+        self.geometry("460x360")
+        self.configure(fg_color=THEME_COLORS["bg"])
         self.resizable(False, False)
 
-        self._center_window(520, 320)
+        self._center_window(460, 360)
         self._build_ui()
 
+        self.after(80, self._animate_pulse)
         self.after(self._duration_ms, self._finish)
 
     def _build_ui(self) -> None:
-        container = ctk.CTkFrame(self, fg_color="#0D1117")
-        container.pack(expand=True, fill="both", padx=24, pady=24)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        container = ctk.CTkFrame(self, fg_color=THEME_COLORS["bg"], corner_radius=0)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_rowconfigure(4, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        logo_path = Path(__file__).resolve().parent.parent / "assets" / "logo.png"
+        self._logo_image = ctk.CTkImage(Image.open(logo_path), size=(120, 120))
+        logo = ctk.CTkLabel(container, image=self._logo_image, text="")
+        logo.grid(row=1, column=0, pady=(PAD_LARGE, PAD_SMALL))
 
         title = ctk.CTkLabel(
             container,
-            text="PCM Thermal Manager",
-            text_color="#E5E7EB",
-            font=ctk.CTkFont(size=26, weight="bold"),
+            text="ThermalManager",
+            text_color=THEME_COLORS["text_primary"],
+            font=("Segoe UI", 22, "bold"),
         )
-        title.pack(pady=(24, 8))
+        title.grid(row=2, column=0, pady=(0, PAD_SMALL))
 
         subtitle = ctk.CTkLabel(
             container,
             text="Inicializando sistema...",
-            text_color="#9AA0AB",
-            font=ctk.CTkFont(size=13),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_NORMAL,
         )
-        subtitle.pack(pady=(0, 28))
+        subtitle.grid(row=3, column=0, pady=(0, PAD_LARGE))
 
-        style = ttk.Style(self)
-        style.theme_use("clam")
-        style.configure(
-            "PCM.Horizontal.TProgressbar",
-            troughcolor="#161B22",
-            background="#00F5D4",
-            bordercolor="#161B22",
-            lightcolor="#00F5D4",
-            darkcolor="#00C9AE",
-        )
-
-        progress = ttk.Progressbar(
+        self._pulse_canvas = tk.Canvas(
             container,
-            style="PCM.Horizontal.TProgressbar",
-            mode="indeterminate",
-            length=360,
+            width=80,
+            height=80,
+            highlightthickness=0,
+            bg=THEME_COLORS["bg"],
         )
-        progress.pack(pady=(0, 12))
-        progress.start(12)
+        self._pulse_canvas.grid(row=4, column=0)
+
+        self._pulse_circle = self._pulse_canvas.create_oval(
+            40 - self._pulse_radius,
+            40 - self._pulse_radius,
+            40 + self._pulse_radius,
+            40 + self._pulse_radius,
+            fill=THEME_COLORS["accent"],
+            outline="",
+        )
+
+    def _animate_pulse(self) -> None:
+        radius = self._pulse_radius
+        if radius >= 20:
+            self._pulse_dir = -1
+        elif radius <= 14:
+            self._pulse_dir = 1
+
+        self._pulse_radius += self._pulse_dir
+        r = self._pulse_radius
+        self._pulse_canvas.coords(self._pulse_circle, 40 - r, 40 - r, 40 + r, 40 + r)
+        self.after(60, self._animate_pulse)
 
     def _finish(self) -> None:
         self.destroy()

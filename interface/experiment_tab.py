@@ -8,6 +8,14 @@ import customtkinter as ctk
 from tkinter import messagebox
 
 from database.database_manager import DatabaseManager
+from ui_styles import (
+    FONT_HEADER,
+    FONT_NORMAL,
+    WIDGET_HEIGHT_NORMAL,
+    PAD_SMALL,
+    PAD_NORMAL,
+    PAD_LARGE,
+)
 
 DATE_FORMAT = "%d-%m-%y %H:%M"
 
@@ -60,12 +68,12 @@ class ExperimentTab(ctk.CTkFrame):
             self,
             text="Experimentos",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=22, weight="bold"),
+            font=FONT_HEADER,
         )
-        title.grid(row=0, column=0, sticky="w", padx=16, pady=(6, 12))
+        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(6, PAD_NORMAL))
 
         form = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=18)
-        form.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 16))
+        form.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_LARGE))
         form.grid_columnconfigure(1, weight=1)
 
         row = 0
@@ -81,26 +89,30 @@ class ExperimentTab(ctk.CTkFrame):
         row = self._field(form, row, "delta_temperatura", "Δ temperatura (°C)", "Calculado automaticamente", disabled=True)
 
         actions = ctk.CTkFrame(form, fg_color="transparent")
-        actions.grid(row=row, column=0, columnspan=2, sticky="w", padx=16, pady=(8, 16))
+        actions.grid(row=row, column=0, columnspan=2, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_LARGE))
 
         self.btn_save = ctk.CTkButton(
             actions,
             text="Salvar Experimento",
+            height=WIDGET_HEIGHT_NORMAL,
             corner_radius=12,
             fg_color="#00F5D4",
             text_color="#0D1117",
             hover_color="#24FFE0",
+            font=FONT_NORMAL,
             command=self.save_experiment,
         )
-        self.btn_save.grid(row=0, column=0, padx=(0, 10))
+        self.btn_save.grid(row=0, column=0, padx=(0, PAD_SMALL))
 
         self.btn_clear = ctk.CTkButton(
             actions,
             text="Limpar",
+            height=WIDGET_HEIGHT_NORMAL,
             corner_radius=12,
             fg_color="#1E2530",
             text_color="#E5E7EB",
             hover_color="#2A3341",
+            font=FONT_NORMAL,
             command=self.clear_form,
         )
         self.btn_clear.grid(row=0, column=1)
@@ -114,10 +126,10 @@ class ExperimentTab(ctk.CTkFrame):
         placeholder: str,
         disabled: bool = False,
     ) -> int:
-        lbl = ctk.CTkLabel(parent, text=label, text_color="#9AA0AB", font=ctk.CTkFont(size=12))
-        lbl.grid(row=row, column=0, sticky="w", padx=16, pady=(12 if row == 0 else 0, 6))
-        entry = ctk.CTkEntry(parent, placeholder_text=placeholder)
-        entry.grid(row=row, column=1, sticky="ew", padx=16, pady=(12 if row == 0 else 0, 12))
+        lbl = ctk.CTkLabel(parent, text=label, text_color="#9AA0AB", font=FONT_NORMAL)
+        lbl.grid(row=row, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL if row == 0 else 0, PAD_SMALL))
+        entry = ctk.CTkEntry(parent, placeholder_text=placeholder, height=WIDGET_HEIGHT_NORMAL, font=FONT_NORMAL)
+        entry.grid(row=row, column=1, sticky="ew", padx=PAD_LARGE, pady=(PAD_NORMAL if row == 0 else 0, PAD_NORMAL))
         if disabled:
             entry.configure(state="disabled")
         else:

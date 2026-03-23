@@ -5,6 +5,15 @@ from datetime import datetime
 import customtkinter as ctk
 from tkinter import messagebox
 
+from ui_styles import (
+    FONT_HEADER,
+    FONT_NORMAL,
+    WIDGET_HEIGHT_NORMAL,
+    PAD_SMALL,
+    PAD_NORMAL,
+    PAD_LARGE,
+)
+
 
 class LoginWindow(ctk.CTk):
     def __init__(self) -> None:
@@ -29,35 +38,48 @@ class LoginWindow(ctk.CTk):
             self,
             text="PCM Thermal Manager",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=28, weight="bold"),
+            font=FONT_HEADER,
         )
-        title.pack(pady=(28, 12))
+        title.pack(pady=(PAD_LARGE, PAD_NORMAL))
 
         card = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=18)
-        card.pack(padx=28, pady=(0, 24), fill="x")
+        card.pack(padx=PAD_LARGE, pady=(0, PAD_LARGE), fill="x")
 
-        user_label = ctk.CTkLabel(card, text="Usuário", text_color="#9AA0AB", font=ctk.CTkFont(size=12))
-        user_label.pack(anchor="w", padx=20, pady=(20, 6))
+        user_label = ctk.CTkLabel(card, text="Usuário", text_color="#9AA0AB", font=FONT_NORMAL)
+        user_label.pack(anchor="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
-        self.username_entry = ctk.CTkEntry(card, placeholder_text="Digite seu nome")
-        self.username_entry.pack(fill="x", padx=20)
+        self.username_entry = ctk.CTkEntry(
+            card,
+            placeholder_text="Digite seu nome",
+            height=WIDGET_HEIGHT_NORMAL,
+            font=FONT_NORMAL,
+        )
+        self.username_entry.pack(fill="x", padx=PAD_LARGE)
 
-        pass_label = ctk.CTkLabel(card, text="Senha", text_color="#9AA0AB", font=ctk.CTkFont(size=12))
-        pass_label.pack(anchor="w", padx=20, pady=(16, 6))
+        pass_label = ctk.CTkLabel(card, text="Senha", text_color="#9AA0AB", font=FONT_NORMAL)
+        pass_label.pack(anchor="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
-        self.password_entry = ctk.CTkEntry(card, show="*", placeholder_text="YYMMDD")
-        self.password_entry.pack(fill="x", padx=20)
+        self.password_entry = ctk.CTkEntry(
+            card,
+            show="*",
+            placeholder_text="YYMMDD",
+            height=WIDGET_HEIGHT_NORMAL,
+            font=FONT_NORMAL,
+        )
+        self.password_entry.pack(fill="x", padx=PAD_LARGE)
 
         self.login_button = ctk.CTkButton(
             card,
             text="Entrar",
+            height=WIDGET_HEIGHT_NORMAL,
             corner_radius=12,
             fg_color="#00F5D4",
             text_color="#0D1117",
             hover_color="#24FFE0",
+            font=FONT_NORMAL,
             command=self._handle_login,
         )
-        self.login_button.pack(padx=20, pady=(20, 22), fill="x")
+        self.login_button.pack(padx=PAD_LARGE, pady=(PAD_LARGE, PAD_LARGE), fill="x")
 
     def _handle_login(self) -> None:
         username = self.username_entry.get().strip() or "Usuário"
