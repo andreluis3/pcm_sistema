@@ -1,5 +1,15 @@
 import customtkinter as ctk
 
+from ui_styles import (
+    FONT_HEADER,
+    FONT_NORMAL,
+    FONT_TITLE,
+    WIDGET_HEIGHT_NORMAL,
+    PAD_SMALL,
+    PAD_NORMAL,
+    PAD_LARGE,
+)
+
 
 class ExportPage(ctk.CTkFrame):
     def __init__(self, parent) -> None:
@@ -10,23 +20,23 @@ class ExportPage(ctk.CTkFrame):
             self,
             text="Exportação",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=22, weight="bold"),
+            font=FONT_HEADER,
         )
-        title.grid(row=0, column=0, sticky="w", padx=16, pady=(6, 16))
+        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(6, PAD_LARGE))
 
         card = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=18)
-        card.grid(row=1, column=0, sticky="ew", padx=16)
+        card.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE)
         card.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             card,
             text="Exportar medições",
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=16, weight="bold"),
-        ).grid(row=0, column=0, sticky="w", padx=16, pady=(16, 8))
+            font=FONT_TITLE,
+        ).grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
         formatos = ctk.CTkFrame(card, fg_color="#0F141C", corner_radius=14)
-        formatos.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 12))
+        formatos.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
         formatos.grid_columnconfigure(0, weight=1)
         formatos.grid_columnconfigure(1, weight=1)
         formatos.grid_columnconfigure(2, weight=1)
@@ -38,19 +48,21 @@ class ExportPage(ctk.CTkFrame):
         exportar_btn = ctk.CTkButton(
             card,
             text="Exportar",
+            height=WIDGET_HEIGHT_NORMAL,
             corner_radius=12,
             fg_color="#00F5D4",
             text_color="#0D1117",
             hover_color="#24FFE0",
+            font=FONT_NORMAL,
         )
-        exportar_btn.grid(row=2, column=0, sticky="w", padx=16, pady=(0, 16))
+        exportar_btn.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
 
     def _option(self, parent, col: int, label: str) -> None:
         box = ctk.CTkFrame(parent, fg_color="#161B22", corner_radius=12)
-        box.grid(row=0, column=col, sticky="ew", padx=10, pady=12)
+        box.grid(row=0, column=col, sticky="ew", padx=PAD_NORMAL, pady=PAD_NORMAL)
         ctk.CTkLabel(
             box,
             text=label,
             text_color="#E5E7EB",
-            font=ctk.CTkFont(size=12, weight="bold"),
-        ).grid(row=0, column=0, padx=12, pady=10)
+            font=FONT_TITLE,
+        ).grid(row=0, column=0, padx=PAD_NORMAL, pady=PAD_SMALL)

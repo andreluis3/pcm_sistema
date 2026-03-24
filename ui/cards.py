@@ -1,6 +1,8 @@
 import tkinter as tk
 import customtkinter as ctk
 
+from ui_styles import FONT_NORMAL, FONT_SMALL, FONT_TITLE, FONT_TEMP, PAD_SMALL, PAD_NORMAL, PAD_LARGE
+
 
 class StatusIndicator(ctk.CTkFrame):
     def __init__(self, parent, label: str, *, size: int = 12) -> None:
@@ -32,7 +34,7 @@ class StatusIndicator(ctk.CTkFrame):
             self,
             text=label,
             text_color="#CBD5F5",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
         )
         self._label.grid(row=0, column=1, sticky="w")
 
@@ -56,25 +58,25 @@ class MetricCard(ctk.CTkFrame):
             self,
             text=title,
             text_color="#92A0B6",
-            font=ctk.CTkFont(size=12),
+            font=FONT_NORMAL,
         )
-        self._title.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 0))
+        self._title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, 0))
 
         self._value = ctk.CTkLabel(
             self,
             text="--",
             text_color="#E2E8F0",
-            font=ctk.CTkFont(family="IBM Plex Mono", size=26, weight="bold"),
+            font=FONT_TITLE,
         )
-        self._value.grid(row=1, column=0, sticky="w", padx=16, pady=(2, 0))
+        self._value.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, 0))
 
         self._unit = ctk.CTkLabel(
             self,
             text=unit,
             text_color="#64748B",
-            font=ctk.CTkFont(size=11),
+            font=FONT_SMALL,
         )
-        self._unit.grid(row=2, column=0, sticky="w", padx=16, pady=(0, 12))
+        self._unit.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
 
     def update_value(self, value: str) -> None:
         self._value.configure(text=value)
@@ -89,25 +91,25 @@ class PCMStateCard(ctk.CTkFrame):
             self,
             text="PCM STATE",
             text_color="#8CA0B3",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=FONT_TITLE,
         )
-        self._title.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 0))
+        self._title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, 0))
 
         self._temperature = ctk.CTkLabel(
             self,
             text="-- °C",
             text_color="#E2E8F0",
-            font=ctk.CTkFont(family="IBM Plex Mono", size=36, weight="bold"),
+            font=FONT_TEMP,
         )
-        self._temperature.grid(row=1, column=0, sticky="w", padx=20, pady=(8, 0))
+        self._temperature.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, 0))
 
         self._state = ctk.CTkLabel(
             self,
             text="--",
             text_color="#38BDF8",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=FONT_TITLE,
         )
-        self._state.grid(row=2, column=0, sticky="w", padx=20, pady=(6, 18))
+        self._state.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_LARGE))
 
     def update_state(self, temperature: float, state_label: str, color: str) -> None:
         self.configure(fg_color=color)

@@ -10,7 +10,6 @@ class SensorService:
     def _on_temperature(self, value: float):
         self.last_temperature = value
         self.callback(value)  # chama a função no MainUI
-        print(f"[SENSOR] Temperatura recebida: {value:.2f} °C")
 
     def start(self, root):
         self.serial.start(root)

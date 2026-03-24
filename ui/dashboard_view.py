@@ -10,6 +10,7 @@ import customtkinter as ctk
 
 from ui.cards import MetricCard, PCMStateCard, StatusIndicator
 from ui.charts import AreaChart, BarChart, LineChart
+from ui_styles import FONT_HEADER, PAD_SMALL, PAD_NORMAL, PAD_LARGE
 
 
 PHASE_SOLID = "SOLID"
@@ -93,34 +94,34 @@ class DashboardPage(ctk.CTkFrame):
     # --- Layout ------------------------------------------------------------
     def _build_layout(self) -> None:
         header = ctk.CTkFrame(self, fg_color="#0B0F14")
-        header.grid(row=0, column=0, sticky="ew", padx=20, pady=(16, 6))
+        header.grid(row=0, column=0, sticky="ew", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
         header.grid_columnconfigure(1, weight=1)
 
         title = ctk.CTkLabel(
             header,
             text="PCM GERENCIADOR TÉRMICO",
             text_color="#E2E8F0",
-            font=ctk.CTkFont(family="IBM Plex Sans", size=20, weight="bold"),
+            font=FONT_HEADER,
         )
         title.grid(row=0, column=0, sticky="w")
 
         indicator_frame = ctk.CTkFrame(header, fg_color="#121821", corner_radius=16)
-        indicator_frame.grid(row=0, column=1, sticky="e", padx=6)
+        indicator_frame.grid(row=0, column=1, sticky="e", padx=PAD_SMALL)
         indicator_frame.grid_columnconfigure(2, weight=1)
 
         self._esp32_indicator = StatusIndicator(indicator_frame, "ESP32")
-        self._esp32_indicator.grid(row=0, column=0, padx=(14, 12), pady=10)
+        self._esp32_indicator.grid(row=0, column=0, padx=(PAD_NORMAL, PAD_NORMAL), pady=PAD_SMALL)
 
         self._db_indicator = StatusIndicator(indicator_frame, "DATABASE")
-        self._db_indicator.grid(row=0, column=1, padx=(0, 14), pady=10)
+        self._db_indicator.grid(row=0, column=1, padx=(0, PAD_NORMAL), pady=PAD_SMALL)
 
         content = ctk.CTkFrame(self, fg_color="transparent")
-        content.grid(row=1, column=0, sticky="ew", padx=20, pady=(6, 10))
+        content.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_NORMAL))
         content.grid_columnconfigure(0, weight=2)
         content.grid_columnconfigure(1, weight=1)
 
         self._pcm_card = PCMStateCard(content)
-        self._pcm_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        self._pcm_card.grid(row=0, column=0, sticky="nsew", padx=(0, PAD_NORMAL))
 
         metric_stack = ctk.CTkFrame(content, fg_color="transparent")
         metric_stack.grid(row=0, column=1, sticky="nsew")
@@ -128,31 +129,31 @@ class DashboardPage(ctk.CTkFrame):
             metric_stack.grid_rowconfigure(row, weight=1)
 
         self._latent_heat_card = MetricCard(metric_stack, "Calor latente", "kJ/kg")
-        self._latent_heat_card.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
+        self._latent_heat_card.grid(row=0, column=0, sticky="nsew", pady=(0, PAD_NORMAL))
 
         self._stored_energy_card = MetricCard(metric_stack, "Energia armazenada", "J")
-        self._stored_energy_card.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
+        self._stored_energy_card.grid(row=1, column=0, sticky="nsew", pady=(0, PAD_NORMAL))
 
         self._cycle_count_card = MetricCard(metric_stack, "Contagem de ciclos", "cycles")
-        self._cycle_count_card.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
+        self._cycle_count_card.grid(row=2, column=0, sticky="nsew", pady=(0, PAD_NORMAL))
 
         self._efficiency_card = MetricCard(metric_stack, "Eficiência energética", "%")
         self._efficiency_card.grid(row=3, column=0, sticky="nsew")
 
         charts = ctk.CTkFrame(self, fg_color="transparent")
-        charts.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        charts.grid(row=2, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_LARGE))
         charts.grid_columnconfigure(0, weight=1)
         charts.grid_columnconfigure(1, weight=1)
         charts.grid_rowconfigure(0, weight=1)
         charts.grid_rowconfigure(1, weight=1)
 
         temp_card = ctk.CTkFrame(charts, fg_color="#121821", corner_radius=16)
-        temp_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=(0, 10))
+        temp_card.grid(row=0, column=0, sticky="nsew", padx=(0, PAD_NORMAL), pady=(0, PAD_NORMAL))
         temp_card.grid_columnconfigure(0, weight=1)
         temp_card.grid_rowconfigure(0, weight=1)
 
         energy_card = ctk.CTkFrame(charts, fg_color="#121821", corner_radius=16)
-        energy_card.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=(0, 10))
+        energy_card.grid(row=0, column=1, sticky="nsew", padx=(PAD_NORMAL, 0), pady=(0, PAD_NORMAL))
         energy_card.grid_columnconfigure(0, weight=1)
         energy_card.grid_rowconfigure(0, weight=1)
 
@@ -162,13 +163,13 @@ class DashboardPage(ctk.CTkFrame):
         cycle_card.grid_rowconfigure(0, weight=1)
 
         self._temperature_chart = LineChart(temp_card, "Temperature vs Time", "#38BDF8")
-        self._temperature_chart.widget.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+        self._temperature_chart.widget.grid(row=0, column=0, sticky="nsew", padx=PAD_NORMAL, pady=PAD_NORMAL)
 
         self._energy_chart = AreaChart(energy_card, "Energy vs Time", "#FBBF24")
-        self._energy_chart.widget.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+        self._energy_chart.widget.grid(row=0, column=0, sticky="nsew", padx=PAD_NORMAL, pady=PAD_NORMAL)
 
         self._cycle_chart = BarChart(cycle_card, "Cycle Efficiency (Last 5)", "#34D399")
-        self._cycle_chart.widget.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+        self._cycle_chart.widget.grid(row=0, column=0, sticky="nsew", padx=PAD_NORMAL, pady=PAD_NORMAL)
 
     # --- Thread safety -----------------------------------------------------
     def _run_on_ui(self, func, *args, **kwargs) -> None:
