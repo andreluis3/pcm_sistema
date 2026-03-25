@@ -13,6 +13,8 @@ class Sidebar(ctk.CTkFrame):
         self._is_expanded = True
         self._animating = False
 
+        self._animation_id = None
+
         self._user_name_value = user_name
 
         self.configure(width=self._expanded_width)
@@ -150,27 +152,25 @@ class Sidebar(ctk.CTkFrame):
 
     # ------------------------
 
-    def toggle(self) -> None:
+    def toggle(self):
+
+        if self._animation_id:
+            self.after_cancel(self._animation_id)
 
         if self._animating:
             return
 
         self._is_expanded = not self._is_expanded
-
         target = self._expanded_width if self._is_expanded else self._collapsed_width
 
+        self._animating = True
         self._animate_width(target)
 
     # ------------------------
 
     def _animate_width(self, target: int) -> None:
-
-        self._animating = True
-
-        current = self.winfo_width() or self._expanded_width
-
+        current = self.winfo_width()
         step = 14 if target > current else -14
-
         next_width = current + step
 
         if (step > 0 and next_width >= target) or (step < 0 and next_width <= target):
@@ -179,10 +179,11 @@ class Sidebar(ctk.CTkFrame):
         self.configure(width=next_width)
 
         if next_width != target:
-            self.after(16, lambda: self._animate_width(target))
-            return
+            self._animation_id = self.after(15, lambda: self._animate_width(target))
+        else:
+            self._animating = False
 
-        self._animating = False
+            
 
         # Atualizar textos
         for btn in self.menu_buttons:

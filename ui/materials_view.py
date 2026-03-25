@@ -1,14 +1,5 @@
 import customtkinter as ctk
-
-from ui_styles import (
-    FONT_HEADER,
-    FONT_TITLE,
-    FONT_NORMAL,
-    FONT_SMALL,
-    PAD_SMALL,
-    PAD_NORMAL,
-    PAD_LARGE,
-)
+import webbrowser
 
 
 class _InfoCard(ctk.CTkFrame):
@@ -20,37 +11,39 @@ class _InfoCard(ctk.CTkFrame):
             self,
             text=title,
             text_color="#94A3B8",
-            font=FONT_NORMAL,
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
-        title_label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, 2))
+        title_label.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 2))
 
         value_label = ctk.CTkLabel(
             self,
             text=value,
             text_color="#E2E8F0",
-            font=FONT_TITLE,
+            font=ctk.CTkFont(family="IBM Plex Mono", size=22, weight="bold"),
         )
-        value_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE)
+        value_label.grid(row=1, column=0, sticky="w", padx=16)
 
         desc_label = ctk.CTkLabel(
             self,
             text=description,
             text_color="#6B7280",
-            font=FONT_SMALL,
+            font=ctk.CTkFont(size=11),
             wraplength=220,
             justify="left",
         )
-        desc_label.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(4, PAD_NORMAL))
+        desc_label.grid(row=2, column=0, sticky="w", padx=16, pady=(4, 12))
 
 
 class MaterialsView(ctk.CTkFrame):
+
     def __init__(self, parent) -> None:
         super().__init__(parent, fg_color="#0B0F14")
+
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
         container = ctk.CTkScrollableFrame(self, fg_color="#0B0F14")
-        container.grid(row=0, column=0, sticky="nsew", padx=PAD_LARGE, pady=PAD_LARGE)
+        container.grid(row=0, column=0, sticky="nsew", padx=16, pady=16)
         container.grid_columnconfigure(0, weight=1)
 
         self._build_header(container)
@@ -59,235 +52,246 @@ class MaterialsView(ctk.CTkFrame):
         self._build_conductivity(container)
         self._build_applications(container)
         self._build_sustainability(container)
+        self._build_documentation(container)
 
-    def _section_frame(self, parent) -> ctk.CTkFrame:
+    def _section_frame(self, parent):
         frame = ctk.CTkFrame(parent, fg_color="#111827", corner_radius=18)
         frame.grid_columnconfigure(0, weight=1)
         return frame
 
-    def _build_header(self, parent) -> None:
+    def _build_header(self, parent):
+
         header = self._section_frame(parent)
-        header.grid(row=0, column=0, sticky="ew", pady=(0, PAD_LARGE))
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 16))
 
         title = ctk.CTkLabel(
             header,
-            text="Material PCM: Cera de Coco",
+            text="MATERIAIS / DATASHEET",
             text_color="#E2E8F0",
-            font=FONT_HEADER,
+            font=ctk.CTkFont(size=22, weight="bold"),
         )
-        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
+        title.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 4))
 
         subtitle = ctk.CTkLabel(
             header,
-            text="Propriedades termofísicas e aplicação em gerenciamento térmico de eletrônicos",
+            text="PCM: Cera de Coco — Material de Mudança de Fase para gerenciamento térmico",
             text_color="#A0AEC0",
-            font=FONT_NORMAL,
+            font=ctk.CTkFont(size=12),
         )
-        subtitle.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
+        subtitle.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 16))
 
-    def _build_description(self, parent) -> None:
+    def _build_description(self, parent):
+
         block = self._section_frame(parent)
-        block.grid(row=1, column=0, sticky="ew", pady=(0, PAD_LARGE))
+        block.grid(row=1, column=0, sticky="ew", pady=(0, 16))
 
         label = ctk.CTkLabel(
             block,
-            text="Descrição científica",
+            text="Identificação do material",
             text_color="#94A3B8",
-            font=FONT_TITLE,
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
-        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
+        label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
 
         text = (
             "A cera de coco é um material orgânico derivado do óleo de coco, "
-            "composto principalmente por ácidos graxos como o ácido láurico. "
-            "Por ser biodegradável e renovável, apresenta baixo impacto ambiental "
-            "e é uma alternativa sustentável aos PCMs derivados de petróleo.\n\n"
-            "Materiais de mudança de fase (PCM) absorvem calor durante a transição "
-            "de sólido para líquido sem elevar significativamente a temperatura. "
-            "Esse fenômeno é conhecido como armazenamento de calor latente.\n\n"
-            "Na eletrônica, a cera de coco pode absorver picos térmicos de componentes, "
-            "armazenando energia de forma temporária e estabilizando a temperatura do sistema. "
-            "Esse comportamento permite que o PCM atue como uma bateria térmica passiva."
+            "composto principalmente por ácidos graxos saturados como o ácido láurico. "
+            "Esse material apresenta boa estabilidade térmica e comportamento adequado "
+            "para aplicações como Material de Mudança de Fase (PCM).\n\n"
+            "PCMs armazenam energia térmica através do calor latente durante a transição "
+            "de fase sólido-líquido. Durante esse processo o material absorve calor sem "
+            "elevar significativamente sua temperatura.\n\n"
+            "O objetivo geral do uso da cera de coco neste sistema é atuar como "
+            "um elemento de armazenamento térmico passivo em eletrônica, absorvendo "
+            "picos de calor gerados por componentes como CPUs, GPUs e módulos de potência."
         )
 
         body = ctk.CTkLabel(
             block,
             text=text,
             text_color="#CBD5F5",
-            font=FONT_NORMAL,
             wraplength=880,
             justify="left",
         )
-        body.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
+        body.grid(row=1, column=0, padx=20, pady=(0, 16), sticky="w")
 
-    def _build_properties(self, parent) -> None:
+    def _build_properties(self, parent):
+
         frame = self._section_frame(parent)
-        frame.grid(row=2, column=0, sticky="ew", pady=(0, PAD_LARGE))
-        frame.grid_columnconfigure(0, weight=1)
+        frame.grid(row=2, column=0, sticky="ew", pady=(0, 16))
 
         label = ctk.CTkLabel(
             frame,
-            text="Propriedades termofísicas",
+            text="Propriedades térmicas",
             text_color="#94A3B8",
-            font=FONT_TITLE,
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
-        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
+        label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
 
         cards = ctk.CTkFrame(frame, fg_color="transparent")
-        cards.grid(row=1, column=0, sticky="ew", padx=PAD_NORMAL, pady=(0, PAD_SMALL))
+        cards.grid(row=1, column=0, sticky="ew", padx=12, pady=10)
+
         for col in range(3):
             cards.grid_columnconfigure(col, weight=1)
 
         data = [
-            (
-                "Melting Temperature",
-                "38–45 °C",
-                "Faixa típica de fusão para cera de coco.",
-            ),
-            (
-                "Latent Heat",
-                "200–230 kJ/kg",
-                "Valores médios reportados para PCMs à base de coco.",
-            ),
-            (
-                "Thermal Conductivity",
-                "≈ 0.2 W/m·K",
-                "Condutividade típica de PCMs orgânicos.",
-            ),
-            (
-                "Density",
-                "≈ 0.9 g/cm³",
-                "Densidade em fase sólida ou semi-sólida.",
-            ),
-            (
-                "Boiling / Decomposition",
-                "> 300 °C",
-                "Decomposição térmica acima de 300 °C.",
-            ),
-            (
-                "Energy Storage Potential",
-                "Alto",
-                "Elevada capacidade de armazenamento por calor latente.",
-            ),
+
+            ("Temperatura de fusão", "50–54 °C",
+             "Faixa típica de fusão para cera de coco hidrogenada."),
+
+            ("Calor latente", "≈ 100–114 J/g",
+             "Energia absorvida durante a mudança de fase sólido-líquido."),
+
+            ("Condutividade térmica", "≈ 0.2 W/m·K",
+             "Condutividade típica de materiais orgânicos PCM."),
+
+            ("Calor específico", "≈ 2.0 kJ/kg·K",
+             "Capacidade térmica aproximada para derivados de óleo de coco."),
+
+            ("Ponto de fulgor", "> 200 °C",
+             "Temperatura mínima para vapores inflamáveis."),
+
+            ("Estado físico", "Sólido",
+             "Apresentado comercialmente em pastilhas brancas.")
         ]
 
         row = 0
         col = 0
+
         for title, value, desc in data:
+
             card = _InfoCard(cards, title, value, desc)
-            card.grid(row=row, column=col, sticky="nsew", padx=PAD_SMALL, pady=PAD_SMALL)
+            card.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
+
             col += 1
             if col == 3:
                 col = 0
                 row += 1
 
-        note = ctk.CTkLabel(
-            frame,
-            text=(
-                "Referências científicas indicam calor latente em torno de 100–114 J/g "
-                "para PCMs à base de óleo de coco, dependendo da composição e do processamento."
-            ),
-            text_color="#64748B",
-            font=FONT_SMALL,
-            wraplength=860,
-            justify="left",
-        )
-        note.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
+    def _build_conductivity(self, parent):
 
-    def _build_conductivity(self, parent) -> None:
         frame = self._section_frame(parent)
-        frame.grid(row=3, column=0, sticky="ew", pady=(0, PAD_LARGE))
+        frame.grid(row=3, column=0, sticky="ew", pady=(0, 16))
 
         label = ctk.CTkLabel(
             frame,
             text="Condutividade térmica",
             text_color="#94A3B8",
-            font=FONT_TITLE,
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
-        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
+        label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
 
         text = (
-            "PCMs orgânicos possuem baixa condutividade térmica, o que pode limitar a "
-            "velocidade de transferência de calor. Ainda assim, são muito eficazes para "
-            "armazenamento passivo de energia térmica. Estudos acadêmicos demonstram melhorias "
-            "na condutividade com a adição de grafite ou nanopartículas de grafeno."
+            "Materiais de mudança de fase orgânicos possuem condutividade térmica "
+            "relativamente baixa. Apesar disso, apresentam excelente capacidade "
+            "de armazenamento de energia térmica.\n\n"
+            "Em aplicações de engenharia térmica é comum utilizar aditivos como "
+            "grafite expandido, cobre ou grafeno para aumentar a condutividade "
+            "e melhorar a eficiência da transferência de calor."
         )
 
         body = ctk.CTkLabel(
             frame,
             text=text,
             text_color="#CBD5F5",
-            font=FONT_NORMAL,
             wraplength=880,
             justify="left",
         )
-        body.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
 
-    def _build_applications(self, parent) -> None:
+        body.grid(row=1, column=0, padx=20, pady=(0, 16), sticky="w")
+
+    def _build_applications(self, parent):
+
         frame = self._section_frame(parent)
-        frame.grid(row=4, column=0, sticky="ew", pady=(0, PAD_LARGE))
+        frame.grid(row=4, column=0, sticky="ew", pady=(0, 16))
 
         label = ctk.CTkLabel(
             frame,
             text="Aplicações em eletrônica",
             text_color="#94A3B8",
-            font=FONT_TITLE,
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
-        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
+
+        label.grid(row=0, column=0, padx=20, pady=(16, 6), sticky="w")
 
         text = (
-            "A cera de coco pode ser integrada ao resfriamento de CPUs e eletrônicos de potência "
-            "como um buffer térmico. O PCM absorve picos de calor durante a fusão e libera a energia "
-            "armazenada durante a solidificação, reduzindo a amplitude das variações de temperatura. "
-            "Esse mecanismo suporta estratégias de armazenamento de calor passivo e prolonga a estabilidade térmica."
+            "A cera de coco pode ser utilizada como PCM em sistemas de gerenciamento "
+            "térmico passivo para eletrônica.\n\n"
+            "Durante picos de carga térmica, o material absorve energia ao fundir, "
+            "reduzindo a elevação da temperatura dos componentes eletrônicos.\n\n"
+            "Esse comportamento permite estabilizar temperaturas de CPUs, módulos "
+            "de potência e dispositivos embarcados, funcionando como uma bateria "
+            "térmica que armazena calor temporariamente."
         )
 
         body = ctk.CTkLabel(
             frame,
             text=text,
             text_color="#CBD5F5",
-            font=FONT_NORMAL,
             wraplength=880,
             justify="left",
         )
-        body.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_LARGE))
 
-    def _build_sustainability(self, parent) -> None:
+        body.grid(row=1, column=0, padx=20, pady=(0, 16), sticky="w")
+
+    def _build_sustainability(self, parent):
+
         frame = self._section_frame(parent)
-        frame.grid(row=5, column=0, sticky="ew")
-        frame.grid_columnconfigure(0, weight=1)
+        frame.grid(row=5, column=0, sticky="ew", pady=(0, 16))
 
         label = ctk.CTkLabel(
             frame,
             text="Sustentabilidade",
             text_color="#94A3B8",
-            font=FONT_TITLE,
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
-        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
+
+        label.grid(row=0, column=0, padx=20, pady=(16, 6), sticky="w")
 
         cards = ctk.CTkFrame(frame, fg_color="transparent")
-        cards.grid(row=1, column=0, sticky="ew", padx=PAD_NORMAL, pady=(0, PAD_LARGE))
+        cards.grid(row=1, column=0, padx=12, pady=10, sticky="ew")
+
         for col in range(3):
             cards.grid_columnconfigure(col, weight=1)
 
         data = [
-            (
-                "Biodegradable",
-                "Material decompõe naturalmente",
-                "Menor impacto no descarte após uso.",
-            ),
-            (
-                "Renewable Origin",
-                "Derivado de fontes vegetais",
-                "Processo alinhado a cadeias sustentáveis.",
-            ),
-            (
-                "Low Environmental Impact",
-                "Comparado a parafinas",
-                "Alternativa com menor pegada de carbono.",
-            ),
+
+            ("Biodegradável",
+             "Origem natural",
+             "Material derivado de óleo vegetal com decomposição natural."),
+
+            ("Fonte renovável",
+             "Origem vegetal",
+             "Produzido a partir de recursos agrícolas renováveis."),
+
+            ("Baixo impacto ambiental",
+             "Alternativa sustentável",
+             "Menor impacto ambiental comparado a parafinas derivadas de petróleo.")
         ]
 
-        for col, (title, value, desc) in enumerate(data):
-            card = _InfoCard(cards, title, value, desc)
-            card.grid(row=0, column=col, sticky="nsew", padx=PAD_SMALL, pady=PAD_SMALL)
+        for i, (t, v, d) in enumerate(data):
+
+            card = _InfoCard(cards, t, v, d)
+            card.grid(row=0, column=i, padx=8, pady=8, sticky="nsew")
+
+    def _build_documentation(self, parent):
+
+        frame = self._section_frame(parent)
+        frame.grid(row=6, column=0, sticky="ew")
+
+        label = ctk.CTkLabel(
+            frame,
+            text="Documentação",
+            text_color="#94A3B8",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        )
+
+        label.grid(row=0, column=0, padx=20, pady=(16, 6), sticky="w")
+
+        button = ctk.CTkButton(
+            frame,
+            text="Abrir FDS do fabricante",
+            command=lambda: webbrowser.open("storage/fds/cera_coco.pdf")
+        )
+
+        button.grid(row=1, column=0, padx=20, pady=(0, 16), sticky="w")
