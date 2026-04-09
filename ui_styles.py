@@ -31,7 +31,7 @@ THEME_COLORS = {
     "bg": "#0D1117",
     "card": "#161B22",
     "card_soft": "#1B222C",
-    "border": "#202734",
+    "border": "#161B22",
     "shadow": "#0A0F14",
     "accent": "#8B93A5",
     "accent_strong": "#7A879B",
