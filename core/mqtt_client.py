@@ -1,3 +1,43 @@
+<<<<<<< HEAD
+import paho.mqtt.client as mqtt
+
+
+class MQTTClient:
+
+    def __init__(self, callback):
+
+        self.broker = "broker.hivemq.com"
+        self.port = 1883
+        self.topic = "pcm/esp32/temperature"
+
+        self.callback = callback
+
+        self.client = mqtt.Client()
+
+        self.client.on_connect = self.on_connect
+        self.client.on_message = self.on_message
+
+    def connect(self):
+
+        self.client.connect(self.broker, self.port)
+
+        self.client.loop_start()
+
+    def on_connect(self, client, userdata, flags, rc):
+
+        print("MQTT conectado")
+
+        client.subscribe(self.topic)
+
+    def on_message(self, client, userdata, msg):
+
+        temperatura = msg.payload.decode()
+
+        print("Temperatura recebida:", temperatura)
+
+        if self.callback:
+            self.callback(temperatura)
+=======
 """MQTT client for ESP32 telemetry integration."""
 
 from __future__ import annotations
@@ -94,3 +134,4 @@ class MQTTClient:
             return int(rc)
         except Exception:
             return getattr(rc, "value", 1)
+>>>>>>> 9ca76cd869fef6245ae18bf751e2ad8288765600
