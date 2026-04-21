@@ -5,7 +5,17 @@ from pathlib import Path
 import customtkinter as ctk
 from PIL import Image
 
-from ui_styles import FONT_NORMAL, PAD_SMALL, PAD_NORMAL, PAD_LARGE, THEME_COLORS
+from ui_styles import (
+    FONT_HEADER,
+    FONT_NORMAL,
+    FONT_LABEL,
+    PAD_SMALL,
+    PAD_NORMAL,
+    PAD_LARGE,
+    THEME_COLORS,
+    card_style,
+    button_style,
+)
 
 
 class WelcomeScreen(ctk.CTk):
@@ -28,10 +38,11 @@ class WelcomeScreen(ctk.CTk):
         return self._proceed
 
     def _build_ui(self) -> None:
+        # UI REFATORADA: welcome card com borda e tipografia moderna
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        card = ctk.CTkFrame(self, fg_color=THEME_COLORS["card"], corner_radius=20)
+        card = ctk.CTkFrame(self, **card_style())
         card.grid(row=0, column=0, sticky="nsew", padx=PAD_LARGE, pady=PAD_LARGE)
         card.grid_rowconfigure(0, weight=1)
         card.grid_rowconfigure(5, weight=1)
@@ -46,7 +57,7 @@ class WelcomeScreen(ctk.CTk):
             card,
             text=f"Bem-vindo ao ThermalManager",
             text_color=THEME_COLORS["text_primary"],
-            font=("Segoe UI", 24, "bold"),
+            font=FONT_HEADER,
         )
         title.grid(row=2, column=0, pady=(0, PAD_SMALL))
 
@@ -54,7 +65,7 @@ class WelcomeScreen(ctk.CTk):
             card,
             text="Sistema de análise térmica e monitoramento de experimentos PCM.",
             text_color=THEME_COLORS["text_secondary"],
-            font=("Segoe UI", 14),
+            font=FONT_LABEL,
             wraplength=380,
             justify="center",
         )
@@ -63,13 +74,9 @@ class WelcomeScreen(ctk.CTk):
         enter_btn = ctk.CTkButton(
             card,
             text="Entrar no Sistema",
-            height=44,
-            corner_radius=14,
-            fg_color=THEME_COLORS["accent"],
-            hover_color=THEME_COLORS["accent_strong"],
-            text_color=THEME_COLORS["text_primary"],
             font=FONT_NORMAL,
             command=self._handle_enter,
+            **button_style("primary"),
         )
         enter_btn.grid(row=4, column=0, pady=(0, PAD_LARGE), padx=PAD_LARGE, sticky="ew")
 

@@ -1,15 +1,26 @@
 import tkinter as tk
 import customtkinter as ctk
 
-from ui_styles import FONT_NORMAL, FONT_SMALL, FONT_TITLE, FONT_TEMP, PAD_SMALL, PAD_NORMAL, PAD_LARGE
+from ui_styles import (
+    FONT_NORMAL,
+    FONT_LABEL,
+    FONT_TITLE,
+    FONT_TEMP,
+    PAD_SMALL,
+    PAD_NORMAL,
+    PAD_LARGE,
+    THEME_COLORS,
+    card_style,
+)
 
 
 class StatusIndicator(ctk.CTkFrame):
     def __init__(self, parent, label: str, *, size: int = 12) -> None:
         super().__init__(parent, fg_color="transparent")
         self._size = size
-        self._color_connected = "#2DD4BF"
-        self._color_disconnected = "#F87171"
+        # UI REFATORADA: cores e tipografia unificadas
+        self._color_connected = THEME_COLORS["export"]
+        self._color_disconnected = THEME_COLORS["danger"]
 
         self.grid_columnconfigure(1, weight=1)
 
@@ -33,8 +44,8 @@ class StatusIndicator(ctk.CTkFrame):
         self._label = ctk.CTkLabel(
             self,
             text=label,
-            text_color="#CBD5F5",
-            font=FONT_NORMAL,
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         self._label.grid(row=0, column=1, sticky="w")
 
@@ -51,30 +62,30 @@ class StatusIndicator(ctk.CTkFrame):
 
 class MetricCard(ctk.CTkFrame):
     def __init__(self, parent, title: str, unit: str) -> None:
-        super().__init__(parent, fg_color="#121821", corner_radius=16)
+        super().__init__(parent, **card_style())
         self.grid_columnconfigure(0, weight=1)
 
         self._title = ctk.CTkLabel(
             self,
             text=title,
-            text_color="#92A0B6",
-            font=FONT_NORMAL,
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         self._title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, 0))
 
         self._value = ctk.CTkLabel(
             self,
             text="--",
-            text_color="#E2E8F0",
-            font=FONT_TITLE,
+            text_color=THEME_COLORS["primary"],
+            font=FONT_TEMP,
         )
         self._value.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, 0))
 
         self._unit = ctk.CTkLabel(
             self,
             text=unit,
-            text_color="#64748B",
-            font=FONT_SMALL,
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         self._unit.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
 
@@ -84,13 +95,13 @@ class MetricCard(ctk.CTkFrame):
 
 class PCMStateCard(ctk.CTkFrame):
     def __init__(self, parent) -> None:
-        super().__init__(parent, fg_color="#111827", corner_radius=20)
+        super().__init__(parent, **card_style())
         self.grid_columnconfigure(0, weight=1)
 
         self._title = ctk.CTkLabel(
             self,
             text="PCM STATE",
-            text_color="#8CA0B3",
+            text_color=THEME_COLORS["text_secondary"],
             font=FONT_TITLE,
         )
         self._title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_LARGE, 0))
@@ -98,7 +109,7 @@ class PCMStateCard(ctk.CTkFrame):
         self._temperature = ctk.CTkLabel(
             self,
             text="-- °C",
-            text_color="#E2E8F0",
+            text_color=THEME_COLORS["primary"],
             font=FONT_TEMP,
         )
         self._temperature.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, 0))
@@ -106,7 +117,7 @@ class PCMStateCard(ctk.CTkFrame):
         self._state = ctk.CTkLabel(
             self,
             text="--",
-            text_color="#38BDF8",
+            text_color=THEME_COLORS["accent_alt"],
             font=FONT_TITLE,
         )
         self._state.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_LARGE))

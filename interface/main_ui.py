@@ -7,10 +7,11 @@ from .view.experiments import ExperimentsPage
 from .view.database_page import DatabasePage
 from .view.export_page import ExportPage
 from .view.thermal_calculations_page import ThermalCalculationsPage
+from pcm_module.pcm_screen import PCMCalcScreen
 
 from services.sensor_service import SensorService  # Versão modular com callback
 from database.database_manager import DatabaseManager
-from ui_styles import FONT_SMALL, PAD_LARGE, PAD_NORMAL
+from ui_styles import FONT_SMALL, PAD_LARGE, PAD_NORMAL, THEME_COLORS
 
 
 class MainUI(ctk.CTk):
@@ -24,7 +25,7 @@ class MainUI(ctk.CTk):
         self.title("PCM Thermal Manager")
         self.username = username
 
-        self._current_page = None
+        self.current_screen = None
         self._dashboard_ref = None
 
         # === Layout principal ===
@@ -41,6 +42,7 @@ class MainUI(ctk.CTk):
         self.load_page("dashboard")
 
     def _build_layout(self):
+        # UI REFATORADA: layout principal com padding e cores padronizadas
         # Configurações de grid do MainUI
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -50,19 +52,19 @@ class MainUI(ctk.CTk):
         self.sidebar.grid(row=0, column=0, sticky="ns")
 
         # Área de conteúdo
-        self.content = ctk.CTkFrame(self, fg_color="#0D1117")
-        self.content.grid(row=0, column=1, sticky="nsew", padx=PAD_LARGE, pady=PAD_LARGE)
-        self.content.grid_columnconfigure(0, weight=1)
-        self.content.grid_rowconfigure(0, weight=1)
+        self.main_frame = ctk.CTkFrame(self, fg_color=THEME_COLORS["bg"])
+        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=PAD_LARGE, pady=PAD_LARGE)
+        self.main_frame.grid_columnconfigure(0, weight=1)
+        self.main_frame.grid_rowconfigure(0, weight=1)
 
         # Barra de status
-        self.status_bar = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=0)
+        self.status_bar = ctk.CTkFrame(self, fg_color=THEME_COLORS["card"], corner_radius=0)
         self.status_bar.grid(row=1, column=0, columnspan=2, sticky="ew")
 
         self.status_label = ctk.CTkLabel(
             self.status_bar,
             text=f"Sensor: Desconectado | Usuário: {self.username} | Banco: Ativo",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_SMALL
         )
         self.status_label.pack(padx=PAD_LARGE, pady=PAD_NORMAL)
@@ -74,6 +76,7 @@ class MainUI(ctk.CTk):
             "materiais": MaterialsView,
             "experimentos": ExperimentsPage,
             "calculos": ThermalCalculationsPage,
+            "pcm": PCMCalcScreen,
             "banco": DatabasePage,
             "exportar": ExportPage,
         }
@@ -86,38 +89,40 @@ class MainUI(ctk.CTk):
 
     # Carrega uma página no content frame
     def load_page(self, page_name: str):
-        if self._current_page is not None:
-            self._current_page.destroy()
+        if self.current_screen is not None:
+            self.current_screen.destroy()
 
         page_class = self.pages.get(page_name)
         if page_class is None:
             return
 
-        if page_name == "experimentos":
-            self._current_page = page_class(
-                self.content,
+        if page_name == "pcm":
+            self.current_screen = PCMCalcScreen(self.main_frame)
+        elif page_name == "experimentos":
+            self.current_screen = page_class(
+                self.main_frame,
                 db_manager=self.db_manager,
                 on_experiment_saved=self._handle_experiment_saved,
             )
         elif page_name == "calculos":
-            self._current_page = page_class(
-                self.content,
+            self.current_screen = page_class(
+                self.main_frame,
                 db_manager=self.db_manager,
                 on_calculation_saved=self._handle_calculation_saved,
             )
         else:
             try:
-                self._current_page = page_class(self.content, db_manager=self.db_manager)
+                self.current_screen = page_class(self.main_frame, db_manager=self.db_manager)
             except TypeError:
-                self._current_page = page_class(self.content)
+                self.current_screen = page_class(self.main_frame)
 
         if page_name == "dashboard":
-            self._dashboard_ref = self._current_page
-        self._current_page.grid(row=0, column=0, sticky="nsew")
+            self._dashboard_ref = self.current_screen
+        self.current_screen.pack(fill="both", expand=True)
         self.sidebar.set_active(page_name)
 
-        if hasattr(self._current_page, "load_dashboard_data"):
-            self._current_page.load_dashboard_data()
+        if hasattr(self.current_screen, "load_dashboard_data"):
+            self.current_screen.load_dashboard_data()
 
     def _handle_experiment_saved(self) -> None:
         if self._dashboard_ref is not None and hasattr(self._dashboard_ref, "load_dashboard_data"):

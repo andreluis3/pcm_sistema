@@ -8,10 +8,14 @@ from tkinter import messagebox
 from ui_styles import (
     FONT_HEADER,
     FONT_NORMAL,
+    FONT_LABEL,
     WIDGET_HEIGHT_NORMAL,
     PAD_SMALL,
     PAD_NORMAL,
     PAD_LARGE,
+    THEME_COLORS,
+    button_style,
+    card_style,
 )
 
 
@@ -24,7 +28,8 @@ class LoginWindow(ctk.CTk):
 
         self.title("PCM Thermal Manager")
         self.geometry("520x360")
-        self.configure(fg_color="#0D1117")
+        # UI REFATORADA: login com paleta e tipografia modernas
+        self.configure(fg_color=THEME_COLORS["bg"])
         self.resizable(False, False)
 
         self._center_window(520, 360)
@@ -37,15 +42,15 @@ class LoginWindow(ctk.CTk):
         title = ctk.CTkLabel(
             self,
             text="PCM Thermal Manager",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_HEADER,
         )
         title.pack(pady=(PAD_LARGE, PAD_NORMAL))
 
-        card = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=18)
+        card = ctk.CTkFrame(self, **card_style())
         card.pack(padx=PAD_LARGE, pady=(0, PAD_LARGE), fill="x")
 
-        user_label = ctk.CTkLabel(card, text="Usuário", text_color="#9AA0AB", font=FONT_NORMAL)
+        user_label = ctk.CTkLabel(card, text="Usuário", text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
         user_label.pack(anchor="w", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
 
         self.username_entry = ctk.CTkEntry(
@@ -56,7 +61,7 @@ class LoginWindow(ctk.CTk):
         )
         self.username_entry.pack(fill="x", padx=PAD_LARGE)
 
-        pass_label = ctk.CTkLabel(card, text="Senha", text_color="#9AA0AB", font=FONT_NORMAL)
+        pass_label = ctk.CTkLabel(card, text="Senha", text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
         pass_label.pack(anchor="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
         self.password_entry = ctk.CTkEntry(
@@ -71,13 +76,9 @@ class LoginWindow(ctk.CTk):
         self.login_button = ctk.CTkButton(
             card,
             text="Entrar",
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color="#00F5D4",
-            text_color="#0D1117",
-            hover_color="#24FFE0",
             font=FONT_NORMAL,
             command=self._handle_login,
+            **button_style("primary"),
         )
         self.login_button.pack(padx=PAD_LARGE, pady=(PAD_LARGE, PAD_LARGE), fill="x")
 

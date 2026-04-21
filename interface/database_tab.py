@@ -10,12 +10,15 @@ from database.database_manager import DatabaseManager
 from ui_styles import (
     FONT_HEADER,
     FONT_NORMAL,
+    FONT_LABEL,
     FONT_SMALL,
     WIDGET_HEIGHT_NORMAL,
     PAD_SMALL,
     PAD_NORMAL,
     PAD_LARGE,
     THEME_COLORS,
+    card_style,
+    button_style,
 )
 
 
@@ -58,6 +61,7 @@ class DatabaseTab(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
+        # UI REFATORADA: tabela com controles e cards padronizados
         title = ctk.CTkLabel(
             self,
             text="Banco de Dados",
@@ -66,7 +70,7 @@ class DatabaseTab(ctk.CTkFrame):
         )
         title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(6, PAD_NORMAL))
 
-        controls = ctk.CTkFrame(self, fg_color=THEME_COLORS["card"], corner_radius=18)
+        controls = ctk.CTkFrame(self, **card_style())
         controls.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
         controls.grid_columnconfigure(0, weight=0)
         controls.grid_columnconfigure(1, weight=1)
@@ -95,28 +99,20 @@ class DatabaseTab(ctk.CTkFrame):
         self.btn_refresh = ctk.CTkButton(
             controls,
             text="🔄 Atualizar",
-            corner_radius=10,
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color=THEME_COLORS["card_soft"],
-            text_color=THEME_COLORS["text_primary"],
-            hover_color=THEME_COLORS["border"],
             width=130,
             font=FONT_NORMAL,
             command=self.refresh_current_view,
+            **button_style("neutral"),
         )
         self.btn_refresh.grid(row=0, column=2, padx=(0, PAD_SMALL), pady=PAD_NORMAL)
 
         self.btn_clear = ctk.CTkButton(
             controls,
             text="🧹 Limpar busca",
-            corner_radius=10,
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color=THEME_COLORS["card_soft"],
-            text_color=THEME_COLORS["text_primary"],
-            hover_color=THEME_COLORS["border"],
             width=140,
             font=FONT_NORMAL,
             command=self.clear_search,
+            **button_style("neutral"),
         )
         self.btn_clear.grid(row=0, column=3, padx=(0, PAD_LARGE), pady=PAD_NORMAL)
 
@@ -126,32 +122,24 @@ class DatabaseTab(ctk.CTkFrame):
         self.btn_edit = ctk.CTkButton(
             actions,
             text="Editar",
-            corner_radius=10,
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color=THEME_COLORS["card_soft"],
-            text_color=THEME_COLORS["text_primary"],
-            hover_color=THEME_COLORS["border"],
             width=110,
             font=FONT_NORMAL,
             command=self.edit_selected_experiment,
+            **button_style("neutral"),
         )
         self.btn_edit.grid(row=0, column=0, padx=(0, PAD_SMALL))
 
         self.btn_delete = ctk.CTkButton(
             actions,
             text="Deletar",
-            corner_radius=10,
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color=THEME_COLORS["card_soft"],
-            text_color=THEME_COLORS["text_primary"],
-            hover_color=THEME_COLORS["border"],
             width=110,
             font=FONT_NORMAL,
             command=self.delete_selected_experiment,
+            **button_style("danger"),
         )
         self.btn_delete.grid(row=0, column=1)
 
-        table_frame = ctk.CTkFrame(self, fg_color=THEME_COLORS["card"], corner_radius=18)
+        table_frame = ctk.CTkFrame(self, **card_style())
         table_frame.grid(row=3, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_LARGE))
         table_frame.grid_columnconfigure(0, weight=1)
         table_frame.grid_rowconfigure(0, weight=1)
@@ -185,7 +173,7 @@ class DatabaseTab(ctk.CTkFrame):
             foreground=THEME_COLORS["text_secondary"],
             font=FONT_SMALL,
         )
-        style.map("PCM.Treeview", background=[("selected", THEME_COLORS["accent_soft"])])
+        style.map("PCM.Treeview", background=[("selected", THEME_COLORS["card_soft"])])
 
     def load_experiments(self) -> None:
         rows = self.db.list_experiments()

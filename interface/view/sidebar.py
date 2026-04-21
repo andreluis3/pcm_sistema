@@ -1,12 +1,22 @@
 import customtkinter as ctk
 
 from .widgets import BotaoSidebar
-from ui_styles import FONT_NORMAL, FONT_SMALL, FONT_TITLE, PAD_SMALL, PAD_NORMAL, PAD_LARGE
+from ui_styles import (
+    FONT_NORMAL,
+    FONT_SMALL,
+    FONT_TITLE,
+    PAD_SMALL,
+    PAD_NORMAL,
+    PAD_LARGE,
+    THEME_COLORS,
+    button_style,
+)
 
 
 class Sidebar(ctk.CTkFrame):
     def __init__(self, parent, ao_selecionar, user_name="Usuário") -> None:
-        super().__init__(parent, fg_color="#15181F")
+        # UI REFATORADA: sidebar com paleta e botões consistentes
+        super().__init__(parent, fg_color=THEME_COLORS["card"])
 
         self._expanded_width = 230
         self._collapsed_width = 80
@@ -28,14 +38,11 @@ class Sidebar(ctk.CTkFrame):
             self,
             text="☰",
             width=48,
-            height=48,
-            corner_radius=12,
-            fg_color="#161B22",
-            hover_color="#1E2530",
-            text_color="#E5E7EB",
+            height=48,  # ✅ controle aqui
+            **button_style("neutral"),
             font=FONT_TITLE,
             command=self.toggle,
-        )
+            )
 
         self.toggle_btn.grid(row=0, column=0, padx=PAD_LARGE, pady=PAD_NORMAL, sticky="w")
 
@@ -48,6 +55,7 @@ class Sidebar(ctk.CTkFrame):
             ("materiais", "🧪", "Materiais"),
             ("experimentos", "🔬", "Experimentos"),
             ("calculos", "🧮", "Cálculos Térmicos"),
+            ("pcm", "🧊", "PCM Calc"),
             ("banco", "🗄️", "Banco de Dados"),
             ("exportar", "📤", "Exportar Dados"),
         ]
@@ -77,7 +85,7 @@ class Sidebar(ctk.CTkFrame):
             self.menu_buttons.append(btn)
 
         # PERFIL DO USUÁRIO
-        self.profile = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=14)
+        self.profile = ctk.CTkFrame(self, fg_color=THEME_COLORS["card_soft"], corner_radius=14, border_width=1, border_color=THEME_COLORS["border"])
 
         self.profile.grid(
             row=9,
@@ -92,7 +100,7 @@ class Sidebar(ctk.CTkFrame):
         self.avatar = ctk.CTkLabel(
             self.profile,
             text="👤",
-            text_color="#8B93A5",
+            text_color=THEME_COLORS["text_secondary"],
             font=FONT_TITLE
         )
 
@@ -107,7 +115,7 @@ class Sidebar(ctk.CTkFrame):
         self.user_name = ctk.CTkLabel(
             self.profile,
             text=self._user_name_value,
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_NORMAL
         )
 
@@ -122,7 +130,7 @@ class Sidebar(ctk.CTkFrame):
         self.user_role = ctk.CTkLabel(
             self.profile,
             text="Operador",
-            text_color="#9AA0AB",
+            text_color=THEME_COLORS["text_secondary"],
             font=FONT_SMALL
         )
 

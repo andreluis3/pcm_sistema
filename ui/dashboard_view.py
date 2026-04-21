@@ -10,7 +10,7 @@ import customtkinter as ctk
 
 from ui.cards import MetricCard, PCMStateCard, StatusIndicator
 from ui.charts import AreaChart, BarChart, LineChart
-from ui_styles import FONT_HEADER, PAD_SMALL, PAD_NORMAL, PAD_LARGE
+from ui_styles import FONT_HEADER, PAD_SMALL, PAD_NORMAL, PAD_LARGE, PAD_GAP, THEME_COLORS, card_style
 
 
 PHASE_SOLID = "SOLID"
@@ -46,7 +46,8 @@ def generate_demo_data() -> dict[str, object]:
 
 class DashboardPage(ctk.CTkFrame):
     def __init__(self, parent) -> None:
-        super().__init__(parent, fg_color="#0B0F14")
+        # UI REFATORADA: dashboard com cards e gráficos padronizados
+        super().__init__(parent, fg_color=THEME_COLORS["bg"])
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
@@ -93,19 +94,19 @@ class DashboardPage(ctk.CTkFrame):
 
     # --- Layout ------------------------------------------------------------
     def _build_layout(self) -> None:
-        header = ctk.CTkFrame(self, fg_color="#0B0F14")
+        header = ctk.CTkFrame(self, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew", padx=PAD_LARGE, pady=(PAD_LARGE, PAD_SMALL))
         header.grid_columnconfigure(1, weight=1)
 
         title = ctk.CTkLabel(
             header,
             text="PCM GERENCIADOR TÉRMICO",
-            text_color="#E2E8F0",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_HEADER,
         )
         title.grid(row=0, column=0, sticky="w")
 
-        indicator_frame = ctk.CTkFrame(header, fg_color="#121821", corner_radius=16)
+        indicator_frame = ctk.CTkFrame(header, **card_style())
         indicator_frame.grid(row=0, column=1, sticky="e", padx=PAD_SMALL)
         indicator_frame.grid_columnconfigure(2, weight=1)
 
@@ -116,7 +117,7 @@ class DashboardPage(ctk.CTkFrame):
         self._db_indicator.grid(row=0, column=1, padx=(0, PAD_NORMAL), pady=PAD_SMALL)
 
         content = ctk.CTkFrame(self, fg_color="transparent")
-        content.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_NORMAL))
+        content.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_GAP))
         content.grid_columnconfigure(0, weight=2)
         content.grid_columnconfigure(1, weight=1)
 
@@ -147,28 +148,28 @@ class DashboardPage(ctk.CTkFrame):
         charts.grid_rowconfigure(0, weight=1)
         charts.grid_rowconfigure(1, weight=1)
 
-        temp_card = ctk.CTkFrame(charts, fg_color="#121821", corner_radius=16)
+        temp_card = ctk.CTkFrame(charts, **card_style())
         temp_card.grid(row=0, column=0, sticky="nsew", padx=(0, PAD_NORMAL), pady=(0, PAD_NORMAL))
         temp_card.grid_columnconfigure(0, weight=1)
         temp_card.grid_rowconfigure(0, weight=1)
 
-        energy_card = ctk.CTkFrame(charts, fg_color="#121821", corner_radius=16)
+        energy_card = ctk.CTkFrame(charts, **card_style())
         energy_card.grid(row=0, column=1, sticky="nsew", padx=(PAD_NORMAL, 0), pady=(0, PAD_NORMAL))
         energy_card.grid_columnconfigure(0, weight=1)
         energy_card.grid_rowconfigure(0, weight=1)
 
-        cycle_card = ctk.CTkFrame(charts, fg_color="#121821", corner_radius=16)
+        cycle_card = ctk.CTkFrame(charts, **card_style())
         cycle_card.grid(row=1, column=0, columnspan=2, sticky="nsew")
         cycle_card.grid_columnconfigure(0, weight=1)
         cycle_card.grid_rowconfigure(0, weight=1)
 
-        self._temperature_chart = LineChart(temp_card, "Temperature vs Time", "#38BDF8")
+        self._temperature_chart = LineChart(temp_card, "Temperature vs Time", THEME_COLORS["accent_alt"])
         self._temperature_chart.widget.grid(row=0, column=0, sticky="nsew", padx=PAD_NORMAL, pady=PAD_NORMAL)
 
-        self._energy_chart = AreaChart(energy_card, "Energy vs Time", "#FBBF24")
+        self._energy_chart = AreaChart(energy_card, "Energy vs Time", THEME_COLORS["primary"])
         self._energy_chart.widget.grid(row=0, column=0, sticky="nsew", padx=PAD_NORMAL, pady=PAD_NORMAL)
 
-        self._cycle_chart = BarChart(cycle_card, "Cycle Efficiency (Last 5)", "#34D399")
+        self._cycle_chart = BarChart(cycle_card, "Cycle Efficiency (Last 5)", THEME_COLORS["export"])
         self._cycle_chart.widget.grid(row=0, column=0, sticky="nsew", padx=PAD_NORMAL, pady=PAD_NORMAL)
 
     # --- Thread safety -----------------------------------------------------

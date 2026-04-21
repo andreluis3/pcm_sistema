@@ -10,33 +10,25 @@ from ui_styles import (
     FONT_NORMAL,
     FONT_TITLE,
     FONT_TEMP,
+    FONT_LABEL,
     WIDGET_HEIGHT_NORMAL,
     WIDGET_HEIGHT_LARGE,
     PAD_SMALL,
     PAD_NORMAL,
     PAD_LARGE,
+    THEME_COLORS,
+    button_style,
+    card_style,
 )
 
 
-COLORS = {
-    "bg": "#0D1117",
-    "card": "#161B22",
-    "card_soft": "#1B222C",
-    "border": "#202734",
-    "shadow": "#0A0F14",
-    "accent": "#8B93A5",
-    "accent_strong": "#7A879B",
-    "accent_soft": "#18212B",
-    "text_primary": "#E5E7EB",
-    "text_secondary": "#9AA0AB",
-    "text_muted": "#8B93A5",
-    "white": "#E5E7EB",
-}
+COLORS = THEME_COLORS
 
 
 class MinimalLineChart:
     def __init__(self, parent) -> None:
         self.figure = Figure(figsize=(5.6, 2.4), dpi=100)
+        # UI REFATORADA: gráfico integrado no dark mode
         self.figure.patch.set_facecolor(COLORS["card"])
         self.ax = self.figure.add_subplot(111)
         self.ax.set_facecolor(COLORS["card"])
@@ -45,7 +37,7 @@ class MinimalLineChart:
         self.ax.set_xticks([])
         self.ax.set_yticks([])
 
-        (self.line,) = self.ax.plot([], [], color=COLORS["accent"], linewidth=2.4)
+        (self.line,) = self.ax.plot([], [], color=COLORS["accent_alt"], linewidth=2.4)
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=parent)
         self.widget = self.canvas.get_tk_widget()
@@ -86,7 +78,7 @@ class SensorPage(ctk.CTkFrame):
         self.create_config_panel()
 
     def create_header(self) -> None:
-        header = ctk.CTkFrame(self, fg_color=COLORS["bg"])
+        header = ctk.CTkFrame(self, fg_color="transparent")
         header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=PAD_LARGE, pady=(6, PAD_NORMAL))
         header.grid_columnconfigure(0, weight=1)
 
@@ -104,7 +96,7 @@ class SensorPage(ctk.CTkFrame):
         status_card = ctk.CTkFrame(
             parent,
             fg_color=COLORS["card"],
-            corner_radius=16,
+            corner_radius=12,
             border_width=1,
             border_color=COLORS["border"],
         )
@@ -113,8 +105,8 @@ class SensorPage(ctk.CTkFrame):
         self._mqtt_status_label = ctk.CTkLabel(
             status_card,
             textvariable=self.mqtt_status_var,
-            text_color=COLORS["text_muted"],
-            font=FONT_NORMAL,
+            text_color=COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         self._mqtt_status_label.grid(row=0, column=0, padx=PAD_LARGE, pady=PAD_SMALL)
 
@@ -122,7 +114,7 @@ class SensorPage(ctk.CTkFrame):
         gauge_card = ctk.CTkFrame(
             self,
             fg_color=COLORS["card"],
-            corner_radius=22,
+            corner_radius=12,
             border_width=1,
             border_color=COLORS["border"],
         )
@@ -154,7 +146,7 @@ class SensorPage(ctk.CTkFrame):
             20,
             canvas_size - 20,
             canvas_size - 20,
-            fill=COLORS["accent_soft"],
+            fill=COLORS["card_soft"],
             outline=COLORS["border"],
             width=2,
         )
@@ -173,7 +165,7 @@ class SensorPage(ctk.CTkFrame):
         self._gauge_value_label = ctk.CTkLabel(
             gauge_card,
             textvariable=self.sensor_temperature_var,
-            text_color=COLORS["white"],
+            text_color=COLORS["primary"],
             font=FONT_TEMP,
         )
         self._gauge_value_label.place(relx=0.5, rely=0.5, anchor="center")
@@ -182,7 +174,7 @@ class SensorPage(ctk.CTkFrame):
             gauge_card,
             text="Temperatura IR",
             text_color=COLORS["text_secondary"],
-            font=FONT_NORMAL,
+            font=FONT_LABEL,
         )
         gauge_hint.place(relx=0.5, rely=0.82, anchor="center")
 
@@ -190,7 +182,7 @@ class SensorPage(ctk.CTkFrame):
         graph_card = ctk.CTkFrame(
             self,
             fg_color=COLORS["card"],
-            corner_radius=22,
+            corner_radius=12,
             border_width=1,
             border_color=COLORS["border"],
         )
@@ -213,7 +205,7 @@ class SensorPage(ctk.CTkFrame):
         panel = ctk.CTkFrame(
             self,
             fg_color=COLORS["card"],
-            corner_radius=22,
+            corner_radius=12,
             border_width=1,
             border_color=COLORS["border"],
         )
@@ -236,13 +228,9 @@ class SensorPage(ctk.CTkFrame):
             header,
             text="Ocultar" if self._config_expanded else "Mostrar",
             width=88,
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color=COLORS["card_soft"],
-            hover_color=COLORS["border"],
-            text_color=COLORS["text_secondary"],
             font=FONT_NORMAL,
             command=self._toggle_config_panel,
+            **button_style("neutral"),
         )
         toggle_btn.grid(row=0, column=1, sticky="e")
         self._toggle_btn = toggle_btn
@@ -258,7 +246,9 @@ class SensorPage(ctk.CTkFrame):
         section = ctk.CTkFrame(
             parent,
             fg_color=COLORS["card_soft"],
-            corner_radius=18,
+            corner_radius=12,
+            border_width=1,
+            border_color=COLORS["border"],
         )
         section.grid(row=0, column=0, sticky="ew", pady=(0, PAD_NORMAL))
         section.grid_columnconfigure(0, weight=1)
@@ -275,7 +265,7 @@ class SensorPage(ctk.CTkFrame):
             section,
             text="Host / IP",
             text_color=COLORS["text_secondary"],
-            font=FONT_NORMAL,
+            font=FONT_LABEL,
         )
         host_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE)
         self.host_entry = ctk.CTkEntry(
@@ -293,7 +283,7 @@ class SensorPage(ctk.CTkFrame):
             section,
             text="Porta",
             text_color=COLORS["text_secondary"],
-            font=FONT_NORMAL,
+            font=FONT_LABEL,
         )
         port_label.grid(row=3, column=0, sticky="w", padx=PAD_LARGE)
         self.port_entry = ctk.CTkEntry(
@@ -311,7 +301,7 @@ class SensorPage(ctk.CTkFrame):
             section,
             text="Tópico de leitura",
             text_color=COLORS["text_secondary"],
-            font=FONT_NORMAL,
+            font=FONT_LABEL,
         )
         topic_label.grid(row=5, column=0, sticky="w", padx=PAD_LARGE)
         self.topic_entry = ctk.CTkEntry(
@@ -333,24 +323,16 @@ class SensorPage(ctk.CTkFrame):
         self.connect_btn = ctk.CTkButton(
             button_row,
             text="Conectar",
-            height=WIDGET_HEIGHT_LARGE,
-            corner_radius=14,
-            fg_color=COLORS["accent"],
-            hover_color=COLORS["accent_strong"],
-            text_color=COLORS["white"],
             font=FONT_TITLE,
+            **button_style("primary"),
         )
         self.connect_btn.grid(row=0, column=0, sticky="ew", padx=(0, PAD_SMALL))
 
         self.disconnect_btn = ctk.CTkButton(
             button_row,
             text="Desconectar",
-            height=WIDGET_HEIGHT_LARGE,
-            corner_radius=14,
-            fg_color=COLORS["accent"],
-            hover_color=COLORS["accent_strong"],
-            text_color=COLORS["white"],
             font=FONT_TITLE,
+            **button_style("danger"),
         )
         self.disconnect_btn.grid(row=0, column=1, sticky="ew", padx=(PAD_SMALL, 0))
 
@@ -358,7 +340,9 @@ class SensorPage(ctk.CTkFrame):
         section = ctk.CTkFrame(
             parent,
             fg_color=COLORS["card_soft"],
-            corner_radius=18,
+            corner_radius=12,
+            border_width=1,
+            border_color=COLORS["border"],
         )
         section.grid(row=1, column=0, sticky="ew")
         section.grid_columnconfigure(0, weight=1)
@@ -375,7 +359,7 @@ class SensorPage(ctk.CTkFrame):
             section,
             text="Emissividade (0.1 – 1.0)",
             text_color=COLORS["text_secondary"],
-            font=FONT_NORMAL,
+            font=FONT_LABEL,
         )
         emiss_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE)
         self.emissivity_entry = ctk.CTkEntry(
@@ -393,15 +377,15 @@ class SensorPage(ctk.CTkFrame):
             section,
             text="Intervalo de refresh",
             text_color=COLORS["text_secondary"],
-            font=FONT_NORMAL,
+            font=FONT_LABEL,
         )
         refresh_label.grid(row=3, column=0, sticky="w", padx=PAD_LARGE)
         self.refresh_option = ctk.CTkOptionMenu(
             section,
             values=["500ms", "1s", "5s"],
             fg_color=COLORS["card"],
-            button_color=COLORS["accent"],
-            button_hover_color=COLORS["accent_strong"],
+            button_color=COLORS["primary"],
+            button_hover_color=button_style("primary")["hover_color"],
             dropdown_fg_color=COLORS["card"],
             dropdown_text_color=COLORS["text_primary"],
             text_color=COLORS["text_primary"],
@@ -414,15 +398,15 @@ class SensorPage(ctk.CTkFrame):
             section,
             text="Modo de amostragem",
             text_color=COLORS["text_secondary"],
-            font=FONT_NORMAL,
+            font=FONT_LABEL,
         )
         sample_label.grid(row=5, column=0, sticky="w", padx=PAD_LARGE)
         self.sample_mode_option = ctk.CTkOptionMenu(
             section,
             values=["Temperatura atual", "Média das últimas 5 leituras"],
             fg_color=COLORS["card"],
-            button_color=COLORS["accent"],
-            button_hover_color=COLORS["accent_strong"],
+            button_color=COLORS["primary"],
+            button_hover_color=button_style("primary")["hover_color"],
             dropdown_fg_color=COLORS["card"],
             dropdown_text_color=COLORS["text_primary"],
             text_color=COLORS["text_primary"],
@@ -462,6 +446,6 @@ class SensorPage(ctk.CTkFrame):
 
         self.mqtt_status_var.set(text)
         is_connected = "conectado" in text.lower()
-        color = COLORS["accent"] if is_connected else COLORS["text_muted"]
+        color = COLORS["primary"] if is_connected else COLORS["text_secondary"]
         if self._mqtt_status_label is not None:
             self._mqtt_status_label.configure(text_color=color)

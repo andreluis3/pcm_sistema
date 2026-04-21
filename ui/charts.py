@@ -5,19 +5,24 @@ from typing import Iterable, Sequence
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from ui_styles import THEME_COLORS
+
 
 class BaseChart:
     def __init__(self, parent, title: str) -> None:
         self._title = title
         self.figure = Figure(figsize=(4.6, 2.6), dpi=100)
-        self.figure.patch.set_facecolor("#121821")
+        # UI REFATORADA: gráfico integrado no dark mode
+        self.figure.patch.set_facecolor(THEME_COLORS["card"])
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_facecolor("#121821")
-        self.ax.set_title(self._title, color="#E2E8F0", fontsize=11, pad=10)
-        self.ax.tick_params(colors="#94A3B8", labelsize=8)
-        self.ax.grid(True, color="#1F2733", linestyle="--", linewidth=0.6, alpha=0.7)
-        for side in ["bottom", "top", "left", "right"]:
-            self.ax.spines[side].set_color("#121821")
+        self.ax.set_facecolor(THEME_COLORS["card"])
+        self.ax.set_title(self._title, color=THEME_COLORS["white"], fontsize=11, pad=10)
+        self.ax.tick_params(colors=THEME_COLORS["text_secondary"], labelsize=8)
+        self.ax.grid(True, color=THEME_COLORS["border"], linestyle="--", linewidth=0.6, alpha=0.65)
+        for side in ["bottom", "left"]:
+            self.ax.spines[side].set_color(THEME_COLORS["border"])
+        for side in ["top", "right"]:
+            self.ax.spines[side].set_visible(False)
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=parent)
         self.widget = self.canvas.get_tk_widget()
@@ -34,8 +39,8 @@ class LineChart(BaseChart):
         super().__init__(parent, title)
         self._line_color = color
         self._line, = self.ax.plot([], [], color=color, linewidth=2.4)
-        self.ax.set_xlabel("Time", color="#94A3B8", fontsize=8)
-        self.ax.set_ylabel("Value", color="#94A3B8", fontsize=8)
+        self.ax.set_xlabel("Time", color=THEME_COLORS["white"], fontsize=8)
+        self.ax.set_ylabel("Value", color=THEME_COLORS["white"], fontsize=8)
 
     def update(self, data: Sequence[float] | Iterable[float]) -> None:
         series = self._coerce_series(data)
@@ -53,8 +58,8 @@ class AreaChart(BaseChart):
         self._area_color = color
         self._line, = self.ax.plot([], [], color=color, linewidth=2.0)
         self._fill = None
-        self.ax.set_xlabel("Time", color="#94A3B8", fontsize=8)
-        self.ax.set_ylabel("Energy", color="#94A3B8", fontsize=8)
+        self.ax.set_xlabel("Time", color=THEME_COLORS["white"], fontsize=8)
+        self.ax.set_ylabel("Energy", color=THEME_COLORS["white"], fontsize=8)
 
     def update(self, data: Sequence[float] | Iterable[float]) -> None:
         series = self._coerce_series(data)
@@ -75,8 +80,8 @@ class BarChart(BaseChart):
         super().__init__(parent, title)
         self._bar_color = color
         self._bars = None
-        self.ax.set_xlabel("Experiments", color="#94A3B8", fontsize=8)
-        self.ax.set_ylabel("Efficiency (%)", color="#94A3B8", fontsize=8)
+        self.ax.set_xlabel("Experiments", color=THEME_COLORS["white"], fontsize=8)
+        self.ax.set_ylabel("Efficiency (%)", color=THEME_COLORS["white"], fontsize=8)
 
     def update(self, data: Sequence[float] | Iterable[float]) -> None:
         series = self._coerce_series(data)
@@ -84,14 +89,16 @@ class BarChart(BaseChart):
             return
         x = list(range(1, len(series) + 1))
         self.ax.clear()
-        self.ax.set_facecolor("#121821")
-        self.ax.set_title(self._title, color="#E2E8F0", fontsize=11, pad=10)
-        self.ax.tick_params(colors="#94A3B8", labelsize=8)
-        self.ax.grid(True, color="#1F2733", linestyle="--", linewidth=0.6, alpha=0.7)
-        for side in ["bottom", "top", "left", "right"]:
-            self.ax.spines[side].set_color("#121821")
-        self.ax.set_xlabel("Experiments", color="#94A3B8", fontsize=8)
-        self.ax.set_ylabel("Efficiency (%)", color="#94A3B8", fontsize=8)
+        self.ax.set_facecolor(THEME_COLORS["card"])
+        self.ax.set_title(self._title, color=THEME_COLORS["white"], fontsize=11, pad=10)
+        self.ax.tick_params(colors=THEME_COLORS["text_secondary"], labelsize=8)
+        self.ax.grid(True, color=THEME_COLORS["border"], linestyle="--", linewidth=0.6, alpha=0.65)
+        for side in ["bottom", "left"]:
+            self.ax.spines[side].set_color(THEME_COLORS["border"])
+        for side in ["top", "right"]:
+            self.ax.spines[side].set_visible(False)
+        self.ax.set_xlabel("Experiments", color=THEME_COLORS["white"], fontsize=8)
+        self.ax.set_ylabel("Efficiency (%)", color=THEME_COLORS["white"], fontsize=8)
         self._bars = self.ax.bar(x, series, color=self._bar_color, alpha=0.85)
         self.ax.set_ylim(0, max(series) + 10)
         self.draw()

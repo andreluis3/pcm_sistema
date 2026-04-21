@@ -9,12 +9,17 @@ from database.database_manager import DatabaseManager
 from ui_styles import (
     FONT_HEADER,
     FONT_NORMAL,
+    FONT_LABEL,
+    FONT_METRIC,
     FONT_TITLE,
     WIDGET_HEIGHT_NORMAL,
     PAD_SMALL,
     PAD_NORMAL,
     PAD_LARGE,
+    PAD_GAP,
     THEME_COLORS,
+    card_style,
+    button_style,
 )
 
 
@@ -154,6 +159,7 @@ class DashboardTab(ctk.CTkFrame):
 
     # --- Layout -----------------------------------------------------------
     def _build_layout(self) -> None:
+        # UI REFATORADA: layout, cards e botões padronizados
         self._configure_ttk_style()
 
         self.create_header()
@@ -177,7 +183,13 @@ class DashboardTab(ctk.CTkFrame):
         )
         title.grid(row=0, column=0, sticky="w")
 
-        status_frame = ctk.CTkFrame(header, fg_color=THEME_COLORS["card"], corner_radius=16)
+        status_frame = ctk.CTkFrame(
+            header,
+            fg_color=THEME_COLORS["card"],
+            corner_radius=12,
+            border_width=1,
+            border_color=THEME_COLORS["border"],
+        )
         status_frame.grid(row=0, column=1, sticky="ew", padx=PAD_NORMAL)
         status_frame.grid_columnconfigure(0, weight=1)
         status_frame.grid_columnconfigure(1, weight=1)
@@ -215,45 +227,33 @@ class DashboardTab(ctk.CTkFrame):
         self._avg_btn_header = ctk.CTkButton(
             actions,
             text="Calcular Média",
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color=THEME_COLORS["card"],
-            hover_color=THEME_COLORS["card_soft"],
-            text_color=THEME_COLORS["text_primary"],
             font=FONT_NORMAL,
             command=self._on_average_clicked,
+            **button_style("primary"),
         )
         self._avg_btn_header.grid(row=0, column=0, padx=(0, PAD_SMALL))
 
         self._export_btn_header = ctk.CTkButton(
             actions,
             text="Exportar",
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color=THEME_COLORS["card"],
-            hover_color=THEME_COLORS["card_soft"],
-            text_color=THEME_COLORS["text_primary"],
             font=FONT_NORMAL,
             command=self._on_export_clicked,
+            **button_style("export"),
         )
         self._export_btn_header.grid(row=0, column=1, padx=(0, PAD_SMALL))
 
         self._reset_btn_header = ctk.CTkButton(
             actions,
             text="Resetar",
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color=THEME_COLORS["card"],
-            hover_color=THEME_COLORS["card_soft"],
-            text_color=THEME_COLORS["text_primary"],
             font=FONT_NORMAL,
             command=self._on_reset_clicked,
+            **button_style("danger"),
         )
         self._reset_btn_header.grid(row=0, column=2)
 
     def create_metrics_panel(self) -> None:
         metrics = ctk.CTkFrame(self, fg_color="transparent")
-        metrics.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
+        metrics.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_GAP))
         for col in range(4):
             metrics.grid_columnconfigure(col, weight=1)
 
@@ -264,7 +264,7 @@ class DashboardTab(ctk.CTkFrame):
 
     def create_main_layout(self) -> None:
         content = ctk.CTkFrame(self, fg_color="transparent")
-        content.grid(row=2, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
+        content.grid(row=2, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_GAP))
         content.grid_columnconfigure(0, weight=1)
         content.grid_columnconfigure(1, weight=2)
         content.grid_rowconfigure(0, weight=1)
@@ -288,7 +288,7 @@ class DashboardTab(ctk.CTkFrame):
         self.create_statistics_table(right_col)
 
     def create_experiment_info_panel(self, parent) -> None:
-        card = ctk.CTkFrame(parent, fg_color=THEME_COLORS["card"], corner_radius=18)
+        card = ctk.CTkFrame(parent, **card_style())
         card.grid(row=1, column=0, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
         card.grid_columnconfigure(1, weight=1)
@@ -319,7 +319,7 @@ class DashboardTab(ctk.CTkFrame):
                 card,
                 text=label,
                 text_color=THEME_COLORS["text_muted"],
-                font=FONT_NORMAL,
+                font=FONT_LABEL,
             )
             label_widget.grid(row=row, column=col, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
@@ -327,13 +327,13 @@ class DashboardTab(ctk.CTkFrame):
                 card,
                 text="--",
                 text_color=THEME_COLORS["text_primary"],
-                font=FONT_TITLE,
+                font=FONT_NORMAL,
             )
             value_widget.grid(row=row + 1, column=col, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
             self._info_labels[key] = value_widget
 
     def create_pcm_canvas(self, parent) -> None:
-        card = ctk.CTkFrame(parent, fg_color=THEME_COLORS["card"], corner_radius=18)
+        card = ctk.CTkFrame(parent, **card_style())
         card.grid(row=0, column=0, sticky="nsew", pady=(0, PAD_NORMAL))
         card.grid_columnconfigure(0, weight=1)
         card.grid_rowconfigure(1, weight=1)
@@ -358,8 +358,8 @@ class DashboardTab(ctk.CTkFrame):
             20,
             240,
             220,
-            fill=THEME_COLORS["accent_soft"],
-            outline=THEME_COLORS["accent"],
+            fill=THEME_COLORS["card_soft"],
+            outline=THEME_COLORS["primary"],
             width=3,
         )
         self._pcm_inner = self._pcm_canvas.create_oval(
@@ -382,7 +382,7 @@ class DashboardTab(ctk.CTkFrame):
         self._animate_pcm()
 
     def create_temperature_graph(self, parent) -> None:
-        card = ctk.CTkFrame(parent, fg_color=THEME_COLORS["card"], corner_radius=18)
+        card = ctk.CTkFrame(parent, **card_style())
         card.grid(row=0, column=0, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
         card.grid_rowconfigure(1, weight=1)
@@ -406,7 +406,7 @@ class DashboardTab(ctk.CTkFrame):
         self._temp_fig, self._temp_ax, self._temp_canvas = self._create_chart(card)
 
     def create_statistics_table(self, parent) -> None:
-        table = ctk.CTkFrame(parent, fg_color=THEME_COLORS["card"], corner_radius=18)
+        table = ctk.CTkFrame(parent, **card_style())
         table.grid(row=1, column=0, sticky="nsew", pady=(PAD_NORMAL, 0))
         table.grid_columnconfigure(0, weight=1)
         table.grid_columnconfigure(1, weight=1)
@@ -435,7 +435,7 @@ class DashboardTab(ctk.CTkFrame):
                 table,
                 text=label,
                 text_color=THEME_COLORS["text_muted"],
-                font=FONT_NORMAL,
+                font=FONT_LABEL,
             )
             label_widget.grid(row=row, column=col, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
@@ -443,14 +443,14 @@ class DashboardTab(ctk.CTkFrame):
                 table,
                 text="--",
                 text_color=THEME_COLORS["text_primary"],
-                font=FONT_TITLE,
+                font=FONT_NORMAL,
             )
             value_widget.grid(row=row + 1, column=col, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
             self._stats_labels[key] = value_widget
 
     def create_thermodynamic_cards(self) -> None:
         cards = ctk.CTkFrame(self, fg_color="transparent")
-        cards.grid(row=3, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
+        cards.grid(row=3, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_GAP))
         cards.grid_columnconfigure(0, weight=1)
         cards.grid_columnconfigure(1, weight=1)
         cards.grid_columnconfigure(2, weight=1)
@@ -469,45 +469,33 @@ class DashboardTab(ctk.CTkFrame):
         self._avg_btn = ctk.CTkButton(
             footer,
             text="Calcular Média dos Experimentos",
-            height=48,
-            corner_radius=14,
-            fg_color=THEME_COLORS["accent"],
-            hover_color=THEME_COLORS["accent_strong"],
-            text_color=THEME_COLORS["text_primary"],
             font=FONT_TITLE,
             command=self._on_average_clicked,
+            **button_style("primary"),
         )
         self._avg_btn.grid(row=0, column=0, sticky="ew", padx=(0, PAD_NORMAL))
 
         self._export_btn = ctk.CTkButton(
             footer,
             text="Exportar Dados",
-            height=48,
-            corner_radius=14,
-            fg_color=THEME_COLORS["accent"],
-            hover_color=THEME_COLORS["accent_strong"],
-            text_color=THEME_COLORS["text_primary"],
             font=FONT_TITLE,
             command=self._on_export_clicked,
+            **button_style("export"),
         )
         self._export_btn.grid(row=0, column=1, sticky="ew", padx=(0, PAD_NORMAL))
 
         self._reset_btn = ctk.CTkButton(
             footer,
             text="Resetar Experimento",
-            height=48,
-            corner_radius=14,
-            fg_color=THEME_COLORS["accent"],
-            hover_color=THEME_COLORS["accent_strong"],
-            text_color=THEME_COLORS["text_primary"],
             font=FONT_TITLE,
             command=self._on_reset_clicked,
+            **button_style("danger"),
         )
         self._reset_btn.grid(row=0, column=2, sticky="ew")
 
     # --- Helpers ---------------------------------------------------------
     def _thermo_card(self, parent, col: int, title: str, formula: str):
-        card = ctk.CTkFrame(parent, fg_color=THEME_COLORS["card"], corner_radius=18)
+        card = ctk.CTkFrame(parent, **card_style())
         card.grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else PAD_NORMAL, 0))
         card.grid_columnconfigure(0, weight=1)
 
@@ -515,7 +503,7 @@ class DashboardTab(ctk.CTkFrame):
             card,
             text=title,
             text_color=THEME_COLORS["text_secondary"],
-            font=FONT_TITLE,
+            font=FONT_LABEL,
         )
         title_label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
@@ -523,29 +511,29 @@ class DashboardTab(ctk.CTkFrame):
             card,
             text=formula,
             text_color=THEME_COLORS["text_muted"],
-            font=FONT_NORMAL,
+            font=FONT_LABEL,
         )
         formula_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE)
 
         value_label = ctk.CTkLabel(
             card,
             text="--",
-            text_color=THEME_COLORS["text_primary"],
-            font=FONT_HEADER,
+            text_color=THEME_COLORS["primary"],
+            font=FONT_METRIC,
         )
         value_label.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_NORMAL))
 
         return {"card": card, "value": value_label}
 
     def _metric_item(self, parent, col: int, title: str) -> ctk.CTkLabel:
-        block = ctk.CTkFrame(parent, fg_color=THEME_COLORS["card"], corner_radius=16)
+        block = ctk.CTkFrame(parent, **card_style())
         block.grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else PAD_NORMAL, 0))
         block.grid_columnconfigure(0, weight=1)
 
-        label = ctk.CTkLabel(block, text=title, text_color=THEME_COLORS["text_secondary"], font=FONT_TITLE)
+        label = ctk.CTkLabel(block, text=title, text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
         label.grid(row=0, column=0, sticky="w", padx=PAD_NORMAL, pady=(PAD_SMALL, PAD_SMALL))
 
-        value = ctk.CTkLabel(block, text="--", text_color=THEME_COLORS["text_primary"], font=FONT_NORMAL)
+        value = ctk.CTkLabel(block, text="--", text_color=THEME_COLORS["primary"], font=FONT_METRIC)
         value.grid(row=1, column=0, sticky="w", padx=PAD_NORMAL, pady=(0, PAD_SMALL))
         return value
 
@@ -563,10 +551,12 @@ class DashboardTab(ctk.CTkFrame):
 
     def _style_axis(self, ax, title: str) -> None:
         ax.set_title(title, color=THEME_COLORS["text_primary"], fontsize=11, pad=10)
-        ax.tick_params(colors=THEME_COLORS["text_muted"], labelsize=8)
-        ax.grid(True, color=THEME_COLORS["border"], linestyle="--", linewidth=0.6, alpha=0.7)
-        for side in ["bottom", "top", "left", "right"]:
-            ax.spines[side].set_color(THEME_COLORS["card"])
+        ax.tick_params(colors=THEME_COLORS["text_secondary"], labelsize=8)
+        ax.grid(True, color=THEME_COLORS["border"], linestyle="--", linewidth=0.6, alpha=0.65)
+        for side in ["bottom", "left"]:
+            ax.spines[side].set_color(THEME_COLORS["border"])
+        for side in ["top", "right"]:
+            ax.spines[side].set_visible(False)
 
     def _set_experiment_info(self, exp: dict) -> None:
         if not exp:
@@ -641,14 +631,14 @@ class DashboardTab(ctk.CTkFrame):
     def _draw_pcm_state(self, state: str) -> None:
         self._pcm_state = state
         if state == "solid":
-            self._pcm_canvas.itemconfigure(self._pcm_circle, fill=THEME_COLORS["accent_soft"], outline=THEME_COLORS["accent"])
+            self._pcm_canvas.itemconfigure(self._pcm_circle, fill=THEME_COLORS["card_soft"], outline=THEME_COLORS["primary"])
             self._pcm_canvas.itemconfigure(self._pcm_inner, fill="", outline="")
         elif state == "transition":
-            self._pcm_canvas.itemconfigure(self._pcm_circle, fill=THEME_COLORS["accent_soft"], outline=THEME_COLORS["line_avg"])
+            self._pcm_canvas.itemconfigure(self._pcm_circle, fill=THEME_COLORS["card_soft"], outline=THEME_COLORS["line_avg"])
             self._pcm_canvas.itemconfigure(self._pcm_inner, fill=THEME_COLORS["card"], outline="")
         else:
             self._pcm_canvas.itemconfigure(self._pcm_circle, fill=THEME_COLORS["accent"], outline=THEME_COLORS["line_avg"])
-            self._pcm_canvas.itemconfigure(self._pcm_inner, fill=THEME_COLORS["accent_soft"], outline="")
+            self._pcm_canvas.itemconfigure(self._pcm_inner, fill=THEME_COLORS["card_soft"], outline="")
 
         self._pcm_canvas.itemconfigure(self._pcm_temp_text, text=self._canvas_temp_var.get())
 

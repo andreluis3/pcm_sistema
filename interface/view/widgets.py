@@ -2,9 +2,13 @@ import customtkinter as ctk
 
 from ui_styles import (
     FONT_NORMAL,
+    FONT_LABEL,
     FONT_TITLE,
     FONT_TEMP,
+    THEME_COLORS,
     WIDGET_HEIGHT_LARGE,
+    card_style,
+    button_style,
 )
 
 
@@ -14,24 +18,25 @@ class CardInformacao(ctk.CTkFrame):
         parent,
         titulo: str,
         valor: str,
-        cor_valor: str = "#E5E7EB",
+        cor_valor: str = None,
         **kwargs,
     ) -> None:
-        super().__init__(parent, fg_color="#161B22", corner_radius=18, **kwargs)
+        # UI REFATORADA: card com borda e padding padronizados
+        super().__init__(parent, **card_style(), **kwargs)
         self.grid_columnconfigure(0, weight=1)
 
         self.titulo = ctk.CTkLabel(
             self,
             text=titulo,
-            text_color="#9AA0AB",
-            font=FONT_TITLE,
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         self.titulo.grid(row=0, column=0, sticky="w", padx=16, pady=(14, 4))
 
         self.valor = ctk.CTkLabel(
             self,
             text=valor,
-            text_color=cor_valor,
+            text_color=cor_valor or THEME_COLORS["primary"],
             font=FONT_TEMP,
         )
         self.valor.grid(row=1, column=0, sticky="w", padx=16, pady=(0, 14))
@@ -59,18 +64,15 @@ class BotaoSidebar(ctk.CTkButton):
             text=texto,
             anchor="w",
             height=WIDGET_HEIGHT_LARGE,
-            corner_radius=14,
-            fg_color="#161B22",
-            hover_color="#1E2530",
-            text_color="#E5E7EB",
+            **button_style("neutral"),
             font=FONT_NORMAL,
             command=comando,
         )
 
     def set_ativo(self, ativo: bool) -> None:
         self.configure(
-            fg_color="#18212B" if ativo else "#161B22",
-            text_color="#00F5D4" if ativo else "#E5E7EB",
+            fg_color=THEME_COLORS["card_soft"] if ativo else THEME_COLORS["neutral"],
+            text_color=THEME_COLORS["primary"] if ativo else THEME_COLORS["text_primary"],
             border_width=1 if ativo else 0,
-            border_color="#00B3FF" if ativo else "#161B22",
+            border_color=THEME_COLORS["primary"] if ativo else THEME_COLORS["neutral"],
         )

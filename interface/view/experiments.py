@@ -4,6 +4,7 @@ from tkinter import ttk
 from database.database_manager import DatabaseManager
 from interface.database_tab import DatabaseTab
 from interface.experiment_tab import ExperimentTab
+from ui_styles import THEME_COLORS
 
 
 class ExperimentsPage(ctk.CTkFrame):
@@ -14,7 +15,8 @@ class ExperimentsPage(ctk.CTkFrame):
         start_tab: str = "experimentos",
         on_experiment_saved=None,
     ) -> None:
-        super().__init__(parent, fg_color="#0D1117")
+        # UI REFATORADA: container de abas com paleta atualizada
+        super().__init__(parent, fg_color=THEME_COLORS["bg"])
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 

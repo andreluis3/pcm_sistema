@@ -1,18 +1,35 @@
 # Centralized UI style constants for PCM Thermal Manager
+# UI REFATORADA: tipografia, cores e utilitários padronizados
 
-FONT_SMALL = ("Segoe UI", 14)
-FONT_NORMAL = ("Segoe UI", 15)
-FONT_TITLE = ("Segoe UI", 18, "bold")
-FONT_HEADER = ("Segoe UI", 22, "bold")
-FONT_TEMP = ("Segoe UI", 32, "bold")
+from __future__ import annotations
+
+import customtkinter as ctk
+
+FONT_FAMILY = "Inter"
+
+def _font(size: int, weight: str = "normal") -> tuple[str, int, str]:
+    return (FONT_FAMILY, size, weight)
+
+# Typography (requested)
+FONT_HEADER = _font(28, "bold")          # Títulos
+FONT_METRIC = _font(24, "bold")          # Métricas (valores)
+FONT_LABEL = _font(13, "normal")         # Labels secundários (approx. medium)
+
+# Supporting sizes
+FONT_TITLE = _font(18, "bold")
+FONT_NORMAL = _font(15, "normal")
+FONT_SMALL = _font(13, "normal")
+FONT_TEMP = FONT_METRIC
 
 WIDGET_HEIGHT_SMALL = 32
 WIDGET_HEIGHT_NORMAL = 38
 WIDGET_HEIGHT_LARGE = 44
 
 PAD_SMALL = 8
-PAD_NORMAL = 12
-PAD_LARGE = 18
+PAD_NORMAL = 10
+PAD_LARGE = 20
+PAD_CARD = 10          # padding interno dos cards
+PAD_GAP = 20           # padding externo entre cards
 
 # Legacy aliases (keep for backward compatibility)
 FONT_SUBTITLE = FONT_TITLE
@@ -28,17 +45,93 @@ SECTION_PAD_Y = PAD_NORMAL
 
 # Theme colors (use across UI for consistent palette)
 THEME_COLORS = {
-    "bg": "#0D1117",
-    "card": "#161B22",
-    "card_soft": "#1B222C",
-    "border": "#161B22",
+    "bg": "#0B1120",
+    "card": "#1E293B",
+    "card_soft": "#243149",
+    "border": "#334155",
     "shadow": "#0A0F14",
-    "accent": "#8B93A5",
-    "accent_strong": "#7A879B",
-    "accent_soft": "#18212B",
-    "line_avg": "#C5D1DE",
-    "text_primary": "#E5E7EB",
-    "text_secondary": "#9AA0AB",
-    "text_muted": "#8B93A5",
-    "white": "#E5E7EB",
+    "neutral": "#334155",
+    "primary": "#06B6D4",
+    "export": "#10B981",
+    "danger": "#EF4444",
+    "accent": "#06B6D4",
+    "accent_alt": "#38BDF8",
+    "line_avg": "#7DD3FC",
+    "text_primary": "#F8FAFC",
+    "text_secondary": "#94A3B8",
+    "text_muted": "#94A3B8",
+    "white": "#F8FAFC",
 }
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    color = color.lstrip("#")
+    return int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
+
+
+def _rgb_to_hex(r: int, g: int, b: int) -> str:
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
+def lighten(color: str, amount: float = 0.10) -> str:
+    r, g, b = _hex_to_rgb(color)
+    r = min(255, int(r + (255 - r) * amount))
+    g = min(255, int(g + (255 - g) * amount))
+    b = min(255, int(b + (255 - b) * amount))
+    return _rgb_to_hex(r, g, b)
+
+
+def card_style() -> dict:
+    return {
+        "fg_color": THEME_COLORS["card"],
+        "corner_radius": 12,
+        "border_width": 1,
+        "border_color": THEME_COLORS["border"],
+    }
+
+
+def make_card(parent, *, padded: bool = True, **kwargs):
+    """Create a styled card. Returns (card, body) when padded=True."""
+    card = ctk.CTkFrame(parent, **card_style(), **kwargs)
+    if not padded:
+        return card
+    card.grid_columnconfigure(0, weight=1)
+    card.grid_rowconfigure(0, weight=1)
+    body = ctk.CTkFrame(card, fg_color="transparent")
+    body.grid(row=0, column=0, sticky="nsew", padx=PAD_CARD, pady=PAD_CARD)
+    body.grid_columnconfigure(0, weight=1)
+    return card, body
+
+
+def label_style(variant: str = "secondary") -> dict:
+    if variant == "title":
+        return {"text_color": THEME_COLORS["text_primary"], "font": FONT_HEADER}
+    if variant == "metric":
+        return {"text_color": THEME_COLORS["primary"], "font": FONT_METRIC}
+    if variant == "primary":
+        return {"text_color": THEME_COLORS["text_primary"], "font": FONT_NORMAL}
+    return {"text_color": THEME_COLORS["text_secondary"], "font": FONT_LABEL}
+
+
+def make_label(parent, text: str, *, variant: str = "secondary", **kwargs):
+    return ctk.CTkLabel(parent, text=text, **label_style(variant), **kwargs)
+
+
+def button_style(variant: str = "primary") -> dict:
+    color_map = {
+        "primary": THEME_COLORS["primary"],
+        "export": THEME_COLORS["export"],
+        "danger": THEME_COLORS["danger"],
+        "neutral": THEME_COLORS["neutral"],
+    }
+    fg = color_map.get(variant, THEME_COLORS["primary"])
+
+    return {
+        "fg_color": fg,
+        "hover_color": lighten(fg, 0.10),
+        "text_color": THEME_COLORS["text_primary"],
+        "corner_radius": 10
+    }
+
+def make_button(parent, text: str, *, variant: str = "primary", **kwargs):
+    return ctk.CTkButton(parent, text=text, **button_style(variant), **kwargs)

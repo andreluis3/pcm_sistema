@@ -1,33 +1,48 @@
 import customtkinter as ctk
 import webbrowser
 
+from ui_styles import (
+    THEME_COLORS,
+    FONT_HEADER,
+    FONT_TITLE,
+    FONT_LABEL,
+    FONT_NORMAL,
+    FONT_METRIC,
+    PAD_LARGE,
+    PAD_NORMAL,
+    PAD_SMALL,
+    card_style,
+    button_style,
+)
+
 
 class _InfoCard(ctk.CTkFrame):
     def __init__(self, parent, title: str, value: str, description: str) -> None:
-        super().__init__(parent, fg_color="#121821", corner_radius=16)
+        # UI REFATORADA: cards informativos padronizados
+        super().__init__(parent, **card_style())
         self.grid_columnconfigure(0, weight=1)
 
         title_label = ctk.CTkLabel(
             self,
             text=title,
-            text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         title_label.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 2))
 
         value_label = ctk.CTkLabel(
             self,
             text=value,
-            text_color="#E2E8F0",
-            font=ctk.CTkFont(family="IBM Plex Mono", size=22, weight="bold"),
+            text_color=THEME_COLORS["primary"],
+            font=FONT_METRIC,
         )
         value_label.grid(row=1, column=0, sticky="w", padx=16)
 
         desc_label = ctk.CTkLabel(
             self,
             text=description,
-            text_color="#6B7280",
-            font=ctk.CTkFont(size=11),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
             wraplength=220,
             justify="left",
         )
@@ -37,13 +52,14 @@ class _InfoCard(ctk.CTkFrame):
 class MaterialsView(ctk.CTkFrame):
 
     def __init__(self, parent) -> None:
-        super().__init__(parent, fg_color="#0B0F14")
+        # UI REFATORADA: view de materiais com paleta moderna
+        super().__init__(parent, fg_color=THEME_COLORS["bg"])
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        container = ctk.CTkScrollableFrame(self, fg_color="#0B0F14")
-        container.grid(row=0, column=0, sticky="nsew", padx=16, pady=16)
+        container = ctk.CTkScrollableFrame(self, fg_color=THEME_COLORS["bg"])
+        container.grid(row=0, column=0, sticky="nsew", padx=PAD_LARGE, pady=PAD_LARGE)
         container.grid_columnconfigure(0, weight=1)
 
         self._build_header(container)
@@ -55,7 +71,7 @@ class MaterialsView(ctk.CTkFrame):
         self._build_documentation(container)
 
     def _section_frame(self, parent):
-        frame = ctk.CTkFrame(parent, fg_color="#111827", corner_radius=18)
+        frame = ctk.CTkFrame(parent, **card_style())
         frame.grid_columnconfigure(0, weight=1)
         return frame
 
@@ -67,16 +83,16 @@ class MaterialsView(ctk.CTkFrame):
         title = ctk.CTkLabel(
             header,
             text="MATERIAIS / DATASHEET",
-            text_color="#E2E8F0",
-            font=ctk.CTkFont(size=22, weight="bold"),
+            text_color=THEME_COLORS["text_primary"],
+            font=FONT_HEADER,
         )
         title.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 4))
 
         subtitle = ctk.CTkLabel(
             header,
             text="PCM: Cera de Coco — Material de Mudança de Fase para gerenciamento térmico",
-            text_color="#A0AEC0",
-            font=ctk.CTkFont(size=12),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         subtitle.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 16))
 
@@ -88,8 +104,8 @@ class MaterialsView(ctk.CTkFrame):
         label = ctk.CTkLabel(
             block,
             text="Identificação do material",
-            text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
 
@@ -109,7 +125,7 @@ class MaterialsView(ctk.CTkFrame):
         body = ctk.CTkLabel(
             block,
             text=text,
-            text_color="#CBD5F5",
+            text_color=THEME_COLORS["text_primary"],
             wraplength=880,
             justify="left",
         )
@@ -123,8 +139,8 @@ class MaterialsView(ctk.CTkFrame):
         label = ctk.CTkLabel(
             frame,
             text="Propriedades térmicas",
-            text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
 
@@ -176,8 +192,8 @@ class MaterialsView(ctk.CTkFrame):
         label = ctk.CTkLabel(
             frame,
             text="Condutividade térmica",
-            text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         label.grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
 
@@ -193,7 +209,7 @@ class MaterialsView(ctk.CTkFrame):
         body = ctk.CTkLabel(
             frame,
             text=text,
-            text_color="#CBD5F5",
+            text_color=THEME_COLORS["text_primary"],
             wraplength=880,
             justify="left",
         )
@@ -208,8 +224,8 @@ class MaterialsView(ctk.CTkFrame):
         label = ctk.CTkLabel(
             frame,
             text="Aplicações em eletrônica",
-            text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
 
         label.grid(row=0, column=0, padx=20, pady=(16, 6), sticky="w")
@@ -227,7 +243,7 @@ class MaterialsView(ctk.CTkFrame):
         body = ctk.CTkLabel(
             frame,
             text=text,
-            text_color="#CBD5F5",
+            text_color=THEME_COLORS["text_primary"],
             wraplength=880,
             justify="left",
         )
@@ -242,8 +258,8 @@ class MaterialsView(ctk.CTkFrame):
         label = ctk.CTkLabel(
             frame,
             text="Sustentabilidade",
-            text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
 
         label.grid(row=0, column=0, padx=20, pady=(16, 6), sticky="w")
@@ -282,8 +298,8 @@ class MaterialsView(ctk.CTkFrame):
         label = ctk.CTkLabel(
             frame,
             text="Documentação",
-            text_color="#94A3B8",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
 
         label.grid(row=0, column=0, padx=20, pady=(16, 6), sticky="w")
@@ -291,7 +307,8 @@ class MaterialsView(ctk.CTkFrame):
         button = ctk.CTkButton(
             frame,
             text="Abrir FDS do fabricante",
-            command=lambda: webbrowser.open("storage/fds/cera_coco.pdf")
+            command=lambda: webbrowser.open("storage/fds/cera_coco.pdf"),
+            **button_style("neutral"),
         )
 
         button.grid(row=1, column=0, padx=20, pady=(0, 16), sticky="w")

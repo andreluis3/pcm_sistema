@@ -11,10 +11,14 @@ from database.database_manager import DatabaseManager
 from ui_styles import (
     FONT_HEADER,
     FONT_NORMAL,
+    FONT_LABEL,
     WIDGET_HEIGHT_NORMAL,
     PAD_SMALL,
     PAD_NORMAL,
     PAD_LARGE,
+    THEME_COLORS,
+    card_style,
+    button_style,
 )
 
 DATE_FORMAT = "%d-%m-%y %H:%M"
@@ -55,7 +59,8 @@ class ExperimentTab(ctk.CTkFrame):
         db_manager: DatabaseManager,
         on_saved: Callable[[], None] | None = None,
     ) -> None:
-        super().__init__(parent, fg_color="#0D1117")
+        # UI REFATORADA: formulário com cards e botões padronizados
+        super().__init__(parent, fg_color=THEME_COLORS["bg"])
         self.db = db_manager
         self.on_saved = on_saved
 
@@ -67,12 +72,12 @@ class ExperimentTab(ctk.CTkFrame):
         title = ctk.CTkLabel(
             self,
             text="Experimentos",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_HEADER,
         )
         title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(6, PAD_NORMAL))
 
-        form = ctk.CTkFrame(self, fg_color="#161B22", corner_radius=18)
+        form = ctk.CTkFrame(self, **card_style())
         form.grid(row=1, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_LARGE))
         form.grid_columnconfigure(1, weight=1)
 
@@ -94,26 +99,18 @@ class ExperimentTab(ctk.CTkFrame):
         self.btn_save = ctk.CTkButton(
             actions,
             text="Salvar Experimento",
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color="#00F5D4",
-            text_color="#0D1117",
-            hover_color="#24FFE0",
             font=FONT_NORMAL,
             command=self.save_experiment,
+            **button_style("primary"),
         )
         self.btn_save.grid(row=0, column=0, padx=(0, PAD_SMALL))
 
         self.btn_clear = ctk.CTkButton(
             actions,
             text="Limpar",
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color="#1E2530",
-            text_color="#E5E7EB",
-            hover_color="#2A3341",
             font=FONT_NORMAL,
             command=self.clear_form,
+            **button_style("neutral"),
         )
         self.btn_clear.grid(row=0, column=1)
 
@@ -126,7 +123,7 @@ class ExperimentTab(ctk.CTkFrame):
         placeholder: str,
         disabled: bool = False,
     ) -> int:
-        lbl = ctk.CTkLabel(parent, text=label, text_color="#9AA0AB", font=FONT_NORMAL)
+        lbl = ctk.CTkLabel(parent, text=label, text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
         lbl.grid(row=row, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL if row == 0 else 0, PAD_SMALL))
         entry = ctk.CTkEntry(parent, placeholder_text=placeholder, height=WIDGET_HEIGHT_NORMAL, font=FONT_NORMAL)
         entry.grid(row=row, column=1, sticky="ew", padx=PAD_LARGE, pady=(PAD_NORMAL if row == 0 else 0, PAD_NORMAL))

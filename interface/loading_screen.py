@@ -6,7 +6,7 @@ import customtkinter as ctk
 from PIL import Image
 import tkinter as tk
 
-from ui_styles import FONT_NORMAL, PAD_SMALL, PAD_LARGE, THEME_COLORS
+from ui_styles import FONT_HEADER, FONT_NORMAL, PAD_SMALL, PAD_LARGE, THEME_COLORS
 
 
 class LoadingScreen(ctk.CTk):
@@ -29,6 +29,7 @@ class LoadingScreen(ctk.CTk):
         self.after(self._duration_ms, self._finish)
 
     def _build_ui(self) -> None:
+        # UI REFATORADA: loading com tipografia e cores consistentes
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
@@ -47,7 +48,7 @@ class LoadingScreen(ctk.CTk):
             container,
             text="ThermalManager",
             text_color=THEME_COLORS["text_primary"],
-            font=("Segoe UI", 22, "bold"),
+            font=FONT_HEADER,
         )
         title.grid(row=2, column=0, pady=(0, PAD_SMALL))
 
@@ -73,7 +74,7 @@ class LoadingScreen(ctk.CTk):
             40 - self._pulse_radius,
             40 + self._pulse_radius,
             40 + self._pulse_radius,
-            fill=THEME_COLORS["accent"],
+            fill=THEME_COLORS["primary"],
             outline="",
         )
 

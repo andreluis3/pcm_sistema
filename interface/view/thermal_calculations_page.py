@@ -13,10 +13,15 @@ from ui_styles import (
     FONT_NORMAL,
     FONT_SMALL,
     FONT_TEMP,
+    FONT_LABEL,
+    FONT_METRIC,
     WIDGET_HEIGHT_NORMAL,
     PAD_SMALL,
     PAD_NORMAL,
     PAD_LARGE,
+    THEME_COLORS,
+    card_style,
+    button_style,
 )
 
 
@@ -89,7 +94,8 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         db_manager: DatabaseManager,
         on_calculation_saved=None,
     ) -> None:
-        super().__init__(parent, fg_color="#0D1117")
+        # UI REFATORADA: painel de cálculos com cards e botões padronizados
+        super().__init__(parent, fg_color=THEME_COLORS["bg"])
         self.db = db_manager
         self._on_calculation_saved = on_calculation_saved
         self._experiment_rows: list = []
@@ -104,7 +110,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         title = ctk.CTkLabel(
             self,
             text="Cálculos Térmicos",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_HEADER,
         )
         title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_NORMAL))
@@ -129,7 +135,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
 
     # --- Painéis ---------------------------------------------------------
     def _build_selection_panel(self, parent) -> None:
-        panel = ctk.CTkFrame(parent, fg_color="#141A22", corner_radius=18)
+        panel = ctk.CTkFrame(parent, **card_style())
         panel.grid(row=0, column=0, sticky="ew", pady=(0, PAD_NORMAL))
         panel.grid_columnconfigure(1, weight=1)
         panel.grid_columnconfigure(3, weight=1)
@@ -137,19 +143,19 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         title = ctk.CTkLabel(
             panel,
             text="1️⃣ Seleção do experimento",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_TITLE,
         )
         title.grid(row=0, column=0, columnspan=4, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
-        exp_label = ctk.CTkLabel(panel, text="Selecionar Experimento", text_color="#9AA0AB", font=FONT_NORMAL)
+        exp_label = ctk.CTkLabel(panel, text="Selecionar Experimento", text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
         exp_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
         self.experiment_combo = ttk.Combobox(panel, state="readonly", values=["Carregando..."])
         self.experiment_combo.grid(row=2, column=0, columnspan=2, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
         self.experiment_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_experiment_selected())
 
-        calc_label = ctk.CTkLabel(panel, text="Tipo de cálculo", text_color="#9AA0AB", font=FONT_NORMAL)
+        calc_label = ctk.CTkLabel(panel, text="Tipo de cálculo", text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
         calc_label.grid(row=1, column=2, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
         self.calc_type = ctk.StringVar(value="Energia Absorvida")
@@ -160,14 +166,14 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
             self.calc_combo.current(0)
 
     def _build_explanation_panel(self, parent) -> None:
-        panel = ctk.CTkFrame(parent, fg_color="#101722", corner_radius=18)
+        panel = ctk.CTkFrame(parent, **card_style())
         panel.grid(row=1, column=0, sticky="ew", pady=(0, PAD_NORMAL))
         panel.grid_columnconfigure(0, weight=1)
 
         title = ctk.CTkLabel(
             panel,
             text="2️⃣ Como este cálculo funciona",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_TITLE,
         )
         title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
@@ -175,7 +181,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self.formula_label = ctk.CTkLabel(
             panel,
             text="",
-            text_color="#00FFFF",
+            text_color=THEME_COLORS["primary"],
             font=FONT_TITLE,
             justify="left",
         )
@@ -184,7 +190,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self.where_label = ctk.CTkLabel(
             panel,
             text="",
-            text_color="#C5D1DE",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_NORMAL,
             justify="left",
         )
@@ -193,15 +199,15 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self.explain_label = ctk.CTkLabel(
             panel,
             text="",
-            text_color="#9AA0AB",
-            font=FONT_NORMAL,
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
             justify="left",
             wraplength=680,
         )
         self.explain_label.grid(row=3, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_NORMAL))
 
     def _build_input_panel(self, parent) -> None:
-        panel = ctk.CTkFrame(parent, fg_color="#141A22", corner_radius=18)
+        panel = ctk.CTkFrame(parent, **card_style())
         panel.grid(row=2, column=0, sticky="nsew", pady=(0, PAD_NORMAL))
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_columnconfigure(1, weight=1)
@@ -209,7 +215,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         title = ctk.CTkLabel(
             panel,
             text="3️⃣ Dados do cálculo",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_TITLE,
         )
         title.grid(row=0, column=0, columnspan=2, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
@@ -219,14 +225,14 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self._inputs_frame.grid_columnconfigure(1, weight=1)
 
     def _build_result_panel(self, parent) -> None:
-        panel = ctk.CTkFrame(parent, fg_color="#101722", corner_radius=18)
+        panel = ctk.CTkFrame(parent, **card_style())
         panel.grid(row=3, column=0, sticky="ew", pady=(0, PAD_NORMAL))
         panel.grid_columnconfigure(1, weight=1)
 
         title = ctk.CTkLabel(
             panel,
             text="4️⃣ Resultado",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_TITLE,
         )
         title.grid(row=0, column=0, columnspan=2, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
@@ -234,16 +240,16 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self.result_label = ctk.CTkLabel(
             panel,
             text="Resultado: --",
-            text_color="#00FFFF",
-            font=FONT_TITLE,
+            text_color=THEME_COLORS["primary"],
+            font=FONT_METRIC,
         )
         self.result_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
         self.result_hint = ctk.CTkLabel(
             panel,
             text="Este valor representa a energia térmica armazenada no material.",
-            text_color="#9AA0AB",
-            font=FONT_NORMAL,
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
         )
         self.result_hint.grid(row=2, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
 
@@ -253,38 +259,30 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self.calculate_btn = ctk.CTkButton(
             actions,
             text="CALCULAR",
-            corner_radius=12,
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color="#2563EB",
-            text_color="#E5E7EB",
-            hover_color="#1D4ED8",
             font=FONT_NORMAL,
             command=self.calculate_energy,
+            **button_style("primary"),
         )
         self.calculate_btn.grid(row=0, column=0, padx=(0, 0), pady=(0, PAD_SMALL))
 
         self.save_btn = ctk.CTkButton(
             actions,
             text="SALVAR CÁLCULO",
-            corner_radius=12,
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color="#16A34A",
-            text_color="#E5E7EB",
-            hover_color="#15803D",
             font=FONT_NORMAL,
             command=self.save_calculation,
+            **button_style("export"),
         )
         self.save_btn.grid(row=1, column=0)
 
     def _build_guide_panel(self, parent) -> None:
-        panel = ctk.CTkFrame(parent, fg_color="#141A22", corner_radius=18)
+        panel = ctk.CTkFrame(parent, **card_style())
         panel.grid(row=4, column=0, sticky="ew")
         panel.grid_columnconfigure(0, weight=1)
 
         title = ctk.CTkLabel(
             panel,
             text="Passo a passo",
-            text_color="#E5E7EB",
+            text_color=THEME_COLORS["text_primary"],
             font=FONT_TITLE,
         )
         title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
@@ -297,8 +295,8 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
                 "3️⃣ Clique em calcular\n"
                 "4️⃣ Salve o cálculo para análise futura"
             ),
-            text_color="#9AA0AB",
-            font=FONT_NORMAL,
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
             justify="left",
         )
         guide.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
@@ -342,7 +340,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
 
         row = 0
         for field in definition["fields"]:
-            lbl = ctk.CTkLabel(self._inputs_frame, text=field.label, text_color="#9AA0AB", font=FONT_NORMAL)
+            lbl = ctk.CTkLabel(self._inputs_frame, text=field.label, text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
             lbl.grid(row=row, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_SMALL, PAD_SMALL))
             entry = ctk.CTkEntry(
                 self._inputs_frame,
@@ -481,16 +479,16 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
             pass
         style.configure(
             "TCombobox",
-            fieldbackground="#0D1117",
-            background="#141A22",
-            foreground="#E5E7EB",
-            bordercolor="#1F2937",
-            arrowcolor="#00FFFF",
+            fieldbackground=THEME_COLORS["bg"],
+            background=THEME_COLORS["card"],
+            foreground=THEME_COLORS["text_primary"],
+            bordercolor=THEME_COLORS["border"],
+            arrowcolor=THEME_COLORS["primary"],
         )
         style.map(
             "TCombobox",
-            fieldbackground=[("readonly", "#0D1117")],
-            foreground=[("readonly", "#E5E7EB")],
+            fieldbackground=[("readonly", THEME_COLORS["bg"])],
+            foreground=[("readonly", THEME_COLORS["text_primary"])],
         )
 
 
@@ -501,7 +499,8 @@ class ThermalCalculationsPage(ctk.CTkFrame):
         db_manager: DatabaseManager | None = None,
         on_calculation_saved=None,
     ) -> None:
-        super().__init__(parent, fg_color="#0D1117")
+        # UI REFATORADA: header com botões padrão
+        super().__init__(parent, fg_color=THEME_COLORS["bg"])
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
@@ -510,7 +509,7 @@ class ThermalCalculationsPage(ctk.CTkFrame):
         self.db = db_manager
         self._on_calculation_saved = on_calculation_saved
 
-        header = ctk.CTkFrame(self, fg_color="#0D1117")
+        header = ctk.CTkFrame(self, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew", padx=PAD_LARGE, pady=(PAD_SMALL, 0))
         header.grid_columnconfigure(0, weight=1)
         header.grid_columnconfigure(1, weight=0)
@@ -519,26 +518,18 @@ class ThermalCalculationsPage(ctk.CTkFrame):
         open_btn = ctk.CTkButton(
             header,
             text="Abrir em nova janela",
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color="#1E2530",
-            text_color="#E5E7EB",
-            hover_color="#2A3341",
             font=FONT_NORMAL,
             command=self._open_window,
+            **button_style("neutral"),
         )
         open_btn.grid(row=0, column=2, sticky="e", padx=(PAD_SMALL, 0))
 
         db_btn = ctk.CTkButton(
             header,
             text="Consultar Banco de Dados",
-            height=WIDGET_HEIGHT_NORMAL,
-            corner_radius=12,
-            fg_color="#1E2530",
-            text_color="#E5E7EB",
-            hover_color="#2A3341",
             font=FONT_NORMAL,
             command=self.open_database_window,
+            **button_style("neutral"),
         )
         db_btn.grid(row=0, column=1, sticky="e")
 
