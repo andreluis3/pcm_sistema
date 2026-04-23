@@ -12,6 +12,7 @@ from pcm_module.pcm_screen import PCMCalcScreen
 from services.sensor_service import SensorService  # Versão modular com callback
 from database.database_manager import DatabaseManager
 from ui_styles import FONT_SMALL, PAD_LARGE, PAD_NORMAL, THEME_COLORS
+from utils.user_session import clear_user
 
 
 class MainUI(ctk.CTk):
@@ -48,7 +49,7 @@ class MainUI(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
 
         # Sidebar fixa
-        self.sidebar = Sidebar(self, self.load_page)
+        self.sidebar = Sidebar(self, self.load_page, user_name=self.username)
         self.sidebar.grid(row=0, column=0, sticky="ns")
 
         # Área de conteúdo
@@ -60,6 +61,8 @@ class MainUI(ctk.CTk):
         # Barra de status
         self.status_bar = ctk.CTkFrame(self, fg_color=THEME_COLORS["card"], corner_radius=0)
         self.status_bar.grid(row=1, column=0, columnspan=2, sticky="ew")
+        self.status_bar.grid_columnconfigure(0, weight=1)
+        self.status_bar.grid_columnconfigure(1, weight=0)
 
         self.status_label = ctk.CTkLabel(
             self.status_bar,
@@ -67,7 +70,23 @@ class MainUI(ctk.CTk):
             text_color=THEME_COLORS["text_primary"],
             font=FONT_SMALL
         )
-        self.status_label.pack(padx=PAD_LARGE, pady=PAD_NORMAL)
+        self.status_label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=PAD_NORMAL)
+
+        self.user_label = ctk.CTkLabel(
+            self.status_bar,
+            text=f"Usuário: {self.username}",
+            text_color=THEME_COLORS["text_primary"],
+            font=FONT_SMALL,
+        )
+        self.user_label.grid(row=0, column=1, sticky="e", padx=(PAD_NORMAL, PAD_NORMAL), pady=PAD_NORMAL)
+
+        self.logout_button = ctk.CTkButton(
+            self.status_bar,
+            text="Logout",
+            width=90,
+            command=self.logout,
+        )
+        self.logout_button.grid(row=0, column=2, sticky="e", padx=(0, PAD_LARGE), pady=PAD_NORMAL)
 
         # Páginas do sistema
         self.pages = {
@@ -86,6 +105,7 @@ class MainUI(ctk.CTk):
         self.status_label.configure(
             text=f"Sensor: Conectado | Última Temp: {temp:.1f} °C | Usuário: {self.username} | Banco: Ativo"
         )
+        self.user_label.configure(text=f"Usuário: {self.username}")
 
     # Carrega uma página no content frame
     def load_page(self, page_name: str):
@@ -131,3 +151,34 @@ class MainUI(ctk.CTk):
     def _handle_calculation_saved(self) -> None:
         if self._dashboard_ref is not None and hasattr(self._dashboard_ref, "load_dashboard_data"):
             self._dashboard_ref.load_dashboard_data()
+
+    def logout(self) -> None:
+        clear_user()
+        try:
+            self.sensor_service.stop()
+        except Exception:
+            pass
+
+        self.destroy()
+
+        from interface.loading_screen import LoadingScreen
+        from interface.login_window import LoginWindow
+        from interface.welcome_screen import WelcomeScreen
+
+        login = LoginWindow()
+        login.mainloop()
+
+        if not login.logged_in:
+            return
+
+        loading = LoadingScreen()
+        loading.mainloop()
+
+        welcome = WelcomeScreen(username=login.username or "Usuário")
+        welcome.mainloop()
+
+        if not welcome.proceed:
+            return
+
+        app = MainUI(username=login.username or "Usuário")
+        app.mainloop()

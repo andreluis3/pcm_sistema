@@ -4,6 +4,7 @@ from datetime import datetime
 
 import customtkinter as ctk
 from tkinter import messagebox
+from utils.user_session import save_user
 
 from ui_styles import (
     FONT_HEADER,
@@ -94,6 +95,7 @@ class LoginWindow(ctk.CTk):
 
         self.logged_in = True
         self.username = username
+        save_user(username)
         self.destroy()
 
     def _center_window(self, width: int, height: int) -> None:

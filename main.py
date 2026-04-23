@@ -5,6 +5,7 @@ from interface.loading_screen import LoadingScreen
 from interface.login_window import LoginWindow
 from interface.main_ui import MainUI
 from interface.welcome_screen import WelcomeScreen
+from utils.user_session import load_user
 
 
 def _configure_hidpi_scaling() -> None:
@@ -31,6 +32,13 @@ def _configure_hidpi_scaling() -> None:
 
 def main() -> None:
     _configure_hidpi_scaling()
+    saved_user = load_user()
+
+    if saved_user:
+        app = MainUI(username=saved_user)
+        app.mainloop()
+        return
+
     login = LoginWindow()
     login.mainloop()
 
@@ -48,8 +56,6 @@ def main() -> None:
 
     app = MainUI(username=login.username or "Usuário")
     app.mainloop()
-
-
 
 if __name__ == "__main__":
     main()
