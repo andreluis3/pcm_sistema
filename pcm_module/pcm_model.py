@@ -26,5 +26,8 @@ class PCMResult:
     potencia_media_movel: list[float] = field(default_factory=list)
     temperatura_media_movel: list[float] = field(default_factory=list)
     energia_media_movel: list[float] = field(default_factory=list)
+    fase_pcm: list[str] = field(default_factory=list)
     csv_preview: list[dict[str, str]] = field(default_factory=list)
     calculo_detalhado: list[str] = field(default_factory=list)
+    erro_percentual: float = 0.0
+    energia_teorica: float = 234000.0

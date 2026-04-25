@@ -96,7 +96,7 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         self.kpi_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.kpi_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 16))
-        for column in range(5):
+        for column in range(6):
             self.kpi_frame.grid_columnconfigure(column, weight=1, uniform="kpi")
 
         kpis = [
@@ -105,6 +105,7 @@ class PCMCalcScreen(ctk.CTkFrame):
             ("Pico de Potencia", "-- W"),
             ("Pico de Temperatura", "-- C"),
             ("Massa de PCM", "-- g"),
+            ("Comparacao Energia", "--"),
         ]
         for index, (title, value) in enumerate(kpis):
             self._create_kpi_card(index, title, value)
@@ -274,6 +275,9 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.kpi_values["Pico de Potencia"].configure(text=f"{result.pico_potencia:.2f} W")
         self.kpi_values["Pico de Temperatura"].configure(text=f"{result.pico_temperatura:.2f} C")
         self.kpi_values["Massa de PCM"].configure(text=f"{result.massa_pcm:.2f} g")
+        self.kpi_values["Comparacao Energia"].configure(
+            text=f"{result.energia_total:.0f} / {result.energia_teorica:.0f} J\nErro: {result.erro_percentual:.1f}%"
+        )
 
         analysis_lines = ["[Analise Tecnica]"]
         analysis_lines.extend(f"- {line}" for line in result.analise_tecnica)
@@ -289,23 +293,15 @@ class PCMCalcScreen(ctk.CTkFrame):
     def _render_charts(self, result: PCMResult) -> None:
         self._clear_charts()
 
-        figure = Figure(figsize=(11.8, 9.0), dpi=100)
+        figure = Figure(figsize=(11.8, 7.8), dpi=100)
         figure.patch.set_facecolor(self.PANEL_COLOR)
 
-        axes = [figure.add_subplot(311), figure.add_subplot(312), figure.add_subplot(313)]
+        axes = [figure.add_subplot(211), figure.add_subplot(212)]
         titles = [
             "Temperatura vs Tempo",
-            "Potencia vs Tempo",
-            "Energia vs Tempo",
+            "Energia Real vs Teorica",
         ]
-        y_labels = ["Temperatura (C)", "Potencia (W)", "Energia (J)"]
-        colors = [self.TEMP_COLOR, self.POWER_COLOR, self.ENERGY_FILL]
-        data_series = [result.temperatura_c, result.potencia_w, result.energia_j]
-        smooth_series = [
-            result.temperatura_media_movel,
-            result.potencia_media_movel,
-            result.energia_media_movel,
-        ]
+        y_labels = ["Temperatura (C)", "Energia (J)"]
 
         for axis, title, ylabel in zip(axes, titles, y_labels):
             axis.set_facecolor(self.CARD_COLOR)
@@ -321,10 +317,10 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         time_values = result.tempo_s
 
-        axes[0].plot(time_values, data_series[0], color=colors[0], linewidth=2.2, label="Temperatura")
+        axes[0].plot(time_values, result.temperatura_c, color=self.TEMP_COLOR, linewidth=2.2, label="Temperatura")
         axes[0].plot(
             time_values,
-            smooth_series[0],
+            result.temperatura_media_movel,
             color="#F8B4B4",
             linewidth=1.6,
             linestyle="--",
@@ -334,48 +330,51 @@ class PCMCalcScreen(ctk.CTkFrame):
             [result.tempo_pico_temperatura],
             [result.pico_temperatura],
             color="#FFE082",
-            edgecolors=colors[0],
+            edgecolors=self.TEMP_COLOR,
             linewidths=1.5,
             s=85,
             zorder=5,
             label="Pico",
+        )
+        delta_T = result.pico_temperatura - result.temperatura_c[0]
+        axes[0].text(
+            0.02,
+            0.92,
+            f"ΔT = {delta_T:.2f}°C",
+            transform=axes[0].transAxes,
+            color="#FFE082",
+            fontsize=12,
+            fontweight="bold",
         )
         axes[0].legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
 
-        axes[1].plot(time_values, data_series[1], color=colors[1], linewidth=2.2, label="Potencia")
+        energia_teorica = [50 * t for t in time_values]
+        axes[1].plot(time_values, result.energia_j, color="#F59E0B", linewidth=2.5, label="Energia Real")
         axes[1].plot(
             time_values,
-            smooth_series[1],
-            color="#A8C8FF",
-            linewidth=1.6,
+            energia_teorica,
             linestyle="--",
-            label="Media movel",
+            color="#AAAAAA",
+            linewidth=2.0,
+            label="Teórico (50W)",
         )
-        axes[1].scatter(
-            [result.tempo_pico_potencia],
-            [result.pico_potencia],
-            color="#D9F3FF",
-            edgecolors=colors[1],
-            linewidths=1.5,
-            s=85,
-            zorder=5,
-            label="Pico",
-        )
+
+        sensivel_x, sensivel_y = [], []
+        latente_x, latente_y = [], []
+
+        for t, e, fase in zip(time_values, result.energia_j, result.fase_pcm):
+            if fase == "sensivel":
+                sensivel_x.append(t)
+                sensivel_y.append(e)
+            else:
+                latente_x.append(t)
+                latente_y.append(e)
+
+        axes[1].scatter(sensivel_x, sensivel_y, color="#4A90E2", s=10, label="Calor Sensivel")
+        axes[1].scatter(latente_x, latente_y, color="#F25F5C", s=10, label="Calor Latente")
         axes[1].legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
 
-        axes[2].plot(time_values, data_series[2], color=self.ENERGY_COLOR, linewidth=2.2, label="Energia acumulada")
-        axes[2].plot(
-            time_values,
-            smooth_series[2],
-            color=colors[2],
-            linewidth=1.6,
-            linestyle="--",
-            label="Suavizacao",
-        )
-        axes[2].fill_between(time_values, data_series[2], color=colors[2], alpha=0.18)
-        axes[2].legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
-
-        figure.subplots_adjust(left=0.08, right=0.98, top=0.96, bottom=0.07, hspace=0.38)
+        figure.subplots_adjust(left=0.08, right=0.98, top=0.96, bottom=0.07, hspace=0.34)
 
         canvas = FigureCanvasTkAgg(figure, master=self.chart_section)
         widget = canvas.get_tk_widget()

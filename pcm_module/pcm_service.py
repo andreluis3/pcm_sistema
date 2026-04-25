@@ -43,8 +43,29 @@ class PCMService:
         temperatura_inicial = float(normalized_df["temperatura_c"].iloc[0])
         delta_t = pico_temperatura - temperatura_inicial
 
-        massa_pcm_kg = energia_total / self.CALOR_LATENTE
+        c = 2000  # J/kg°C
+        m = 1
+        delta_T = pico_temperatura - temperatura_inicial
+
+        Q_sensivel = m * c * delta_T
+        Q_total_pcm = Q_sensivel + self.CALOR_LATENTE
+
+        massa_pcm_kg = energia_total / Q_total_pcm
         massa_pcm_g = massa_pcm_kg * 1000.0
+
+        Q_teorico = 234000.0
+        erro_percentual = ((energia_total - Q_teorico) / Q_teorico) * 100
+
+        energia_array = normalized_df["energia_j"].tolist()
+        Q_latente = self.CALOR_LATENTE
+        Q_sensivel_fase = Q_teorico - Q_latente
+
+        fase_pcm = []
+        for energia in energia_array:
+            if energia < Q_sensivel_fase:
+                fase_pcm.append("sensivel")
+            else:
+                fase_pcm.append("latente")
 
         preview_df = normalized_df.tail(8).copy()
         preview_df["tempo_s"] = preview_df["tempo_s"].map(lambda value: f"{value:.2f}")
@@ -81,7 +102,8 @@ class PCMService:
             f"O sistema atingiu pico termico de {pico_temperatura:.2f} C em {tempo_pico_temperatura:.2f} s.",
             f"Potencia maxima registrada: {pico_potencia:.2f} W em {tempo_pico_potencia:.2f} s.",
             f"Energia acumulada no ensaio: {energia_total:.2f} J ao longo de {tempo_total:.2f} s.",
-            f"PCM necessario estimado: {massa_pcm_g:.2f} g usando m = E_total / L com L = {self.CALOR_LATENTE:.0f} J/kg.",
+            f"PCM necessario estimado: {massa_pcm_g:.2f} g usando m = E_total / (Q_sensivel + L).",
+            f"Referencia teorica: {Q_teorico:.0f} J com erro de {erro_percentual:.2f}%.",
             f"Comportamento termico classificado como {status_termico}.",
         ]
 
@@ -107,8 +129,11 @@ class PCMService:
             potencia_media_movel=potencia_media_movel,
             temperatura_media_movel=temperatura_media_movel,
             energia_media_movel=energia_media_movel,
+            fase_pcm=fase_pcm,
             csv_preview=preview_df.to_dict(orient="records"),
             calculo_detalhado=calculo_detalhado,
+            erro_percentual=erro_percentual,
+            energia_teorica=Q_teorico,
         )
 
     def _build_calculation_audit_trail(
