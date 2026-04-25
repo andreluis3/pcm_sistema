@@ -43,7 +43,6 @@ def generate_demo_data() -> dict[str, object]:
         },
     }
 
-
 class DashboardPage(ctk.CTkFrame):
     def __init__(self, parent) -> None:
         # UI REFATORADA: dashboard com cards e gráficos padronizados

@@ -27,3 +27,4 @@ class PCMResult:
     temperatura_media_movel: list[float] = field(default_factory=list)
     energia_media_movel: list[float] = field(default_factory=list)
     csv_preview: list[dict[str, str]] = field(default_factory=list)
+    calculo_detalhado: list[str] = field(default_factory=list)

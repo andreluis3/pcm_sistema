@@ -54,7 +54,7 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="PCM Thermal Engineering Dashboard",
+            text="Calculos de PCM - Dashboard Térmico",
             font=("Arial", 30, "bold"),
             text_color=self.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w", padx=24, pady=(22, 6))
@@ -275,9 +275,13 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.kpi_values["Pico de Temperatura"].configure(text=f"{result.pico_temperatura:.2f} C")
         self.kpi_values["Massa de PCM"].configure(text=f"{result.massa_pcm:.2f} g")
 
-        analysis_lines = [f"- {line}" for line in result.analise_tecnica]
+        analysis_lines = ["[Analise Tecnica]"]
+        analysis_lines.extend(f"- {line}" for line in result.analise_tecnica)
         analysis_lines.append(f"- Delta de tempo total analisado: {result.delta_tempo:.2f} s.")
         analysis_lines.append(f"- Temperatura media registrada: {result.temperatura_media:.2f} C.")
+        analysis_lines.append("")
+        analysis_lines.append("[Calculo Detalhado]")
+        analysis_lines.extend(f"- {line}" for line in result.calculo_detalhado)
         self._write_text(self.analysis_box, "\n".join(analysis_lines))
         self._write_text(self.log_box, self._format_preview_table(result.csv_preview))
         self._render_charts(result)
