@@ -589,7 +589,7 @@ class DashboardTab(ctk.CTkFrame):
             self._card_storage["value"].configure(text="--")
             return
 
-        sensivel = self.db.get_calculo_by_experimento_tipo(exp_id, "Calor Específico")
+        sensivel = self.db.get_calculo_by_experimento_tipo(exp_id, "Calor Sensível")
         latente = self.db.get_calculo_by_experimento_tipo(exp_id, "Calor Latente")
         energia = self.db.get_energia_armazenada(exp_id)
 

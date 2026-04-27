@@ -28,6 +28,11 @@ def _configure_hidpi_scaling() -> None:
 
     ctk.set_widget_scaling(scaling)
     ctk.set_window_scaling(scaling)
+    
+def handle_bgerror(self, msg):
+    print("BGERROR tratado:", msg)
+
+    self.report_callback_exception = self.handle_bgerror
 
 
 def main() -> None:

@@ -13,6 +13,7 @@ EXPECTED_EXPERIMENT_COLUMNS: tuple[str, ...] = (
     "operador",
     "capsula",
     "massa",
+    "calor_especifico",
     "tempo_inicio",
     "tempo_final",
     "delta_tempo",
@@ -75,6 +76,7 @@ class DatabaseManager:
                 operador TEXT,
                 capsula TEXT,
                 massa REAL,
+                calor_especifico REAL DEFAULT 2.0,
                 tempo_inicio TEXT,
                 tempo_final TEXT,
                 delta_tempo REAL,
@@ -86,6 +88,7 @@ class DatabaseManager:
         )
         self.conn.commit()
         self._migrate_experiments_if_needed()
+        self._ensure_experiments_calor_especifico_fixed()
 
     def _ensure_thermal_calculations_table(self) -> None:
         self.conn.execute(
@@ -123,6 +126,17 @@ class DatabaseManager:
             """
         )
         self.conn.commit()
+        self._normalize_tabela_calculos_calor_especifico_fixed()
+
+    def _normalize_tabela_calculos_calor_especifico_fixed(self) -> None:
+        try:
+            cols = self._get_table_columns("tabela_calculos")
+        except sqlite3.OperationalError:
+            return
+        if "calor_especifico" not in cols:
+            return
+        with self.conn:
+            self.conn.execute("UPDATE tabela_calculos SET calor_especifico = 2.0")
 
     def _get_table_columns(self, table: str) -> list[str]:
         rows = self.conn.execute(f"PRAGMA table_info({table})").fetchall()
@@ -134,7 +148,16 @@ class DatabaseManager:
         except sqlite3.OperationalError:
             return
 
-        if set(EXPECTED_EXPERIMENT_COLUMNS).issubset(set(existing)):
+        expected = set(EXPECTED_EXPERIMENT_COLUMNS)
+        existing_set = set(existing)
+        missing = expected - existing_set
+        if not missing:
+            return
+
+        if missing == {"calor_especifico"}:
+            with self.conn:
+                self.conn.execute("ALTER TABLE experiments ADD COLUMN calor_especifico REAL DEFAULT 2.0")
+                self.conn.execute("UPDATE experiments SET calor_especifico = 2.0")
             return
 
         # Best-effort migration for early schemas used in this repo.
@@ -184,6 +207,7 @@ class DatabaseManager:
                     operador TEXT,
                     capsula TEXT,
                     massa REAL,
+                    calor_especifico REAL DEFAULT 2.0,
                     tempo_inicio TEXT,
                     tempo_final TEXT,
                     delta_tempo REAL,
@@ -202,7 +226,20 @@ class DatabaseManager:
             )
             self.conn.execute("DROP TABLE experiments_old")
 
+    def _ensure_experiments_calor_especifico_fixed(self) -> None:
+        try:
+            existing = self._get_table_columns("experiments")
+        except sqlite3.OperationalError:
+            return
+
+        with self.conn:
+            if "calor_especifico" not in existing:
+                self.conn.execute("ALTER TABLE experiments ADD COLUMN calor_especifico REAL DEFAULT 2.0")
+            self.conn.execute("UPDATE experiments SET calor_especifico = 2.0")
+
     def insert_experiment(self, data: dict[str, Any]) -> int:
+        data = dict(data)
+        data["calor_especifico"] = 2.0
         keys = [k for k in data.keys() if k in EXPECTED_EXPERIMENT_COLUMNS and k not in {"id", "date_created"}]
         if not keys:
             raise ValueError("Nenhum campo válido para inserir em experiments.")
@@ -216,6 +253,8 @@ class DatabaseManager:
             return int(cur.lastrowid)
 
     def update_experiment(self, experiment_id: int, data: dict[str, Any]) -> None:
+        data = dict(data)
+        data["calor_especifico"] = 2.0
         keys = [k for k in data.keys() if k in EXPECTED_EXPERIMENT_COLUMNS and k not in {"id"}]
         if not keys:
             return
@@ -450,8 +489,5 @@ class DatabaseManager:
         delta_t = row["delta_temperatura"]
         if massa is None or delta_t is None:
             return None
-        calc = self.get_calculo_by_experimento_tipo(experimento_id, "Calor Específico")
-        calor_especifico = calc["calor_especifico"] if calc else None
-        if calor_especifico is None:
-            return None
-        return float(massa) * float(calor_especifico) * float(delta_t)
+        # Modelo fixo: 2.0 kJ/kg·°C (equivalente a 2.0 J/g·°C)
+        return float(massa) * 2.0 * float(delta_t)

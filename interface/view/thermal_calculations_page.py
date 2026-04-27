@@ -7,6 +7,7 @@ from tkinter import messagebox, ttk
 from database.database_manager import DatabaseManager
 from interface.database_tab import DatabaseTab
 from ui.materials_view import MaterialsView
+from services.controller_calculos import ControllerCalculos
 from ui_styles import (
     FONT_HEADER,
     FONT_TITLE,
@@ -35,53 +36,51 @@ class CalculationField:
 CALCULATION_DEFS: dict[str, dict] = {
     "Energia Absorvida": {
         "formula": "Q = m × c × ΔT",
-        "where": "Onde:\nQ = energia absorvida\nm = massa\nc = calor específico\nΔT = variação de temperatura",
+        "where": (
+            "Onde:\n"
+            "Q = energia absorvida\n"
+            "m = massa\n"
+            "ΔT = variação de temperatura\n\n"
+            "Calor específico: 2.0 kJ/kg·°C (valor fixo adotado com base em dados típicos de materiais orgânicos semelhantes à cera de coco)"
+        ),
         "explain": "Este cálculo determina a energia necessária para elevar a temperatura sem mudança de fase.",
         "fields": [
             CalculationField("m", "Massa (g)", "Ex.: 100"),
-            CalculationField("c", "Calor específico (J/g°C)", "Ex.: 2.1"),
             CalculationField("delta_t", "ΔT (°C)", "Ex.: 29"),
         ],
         "result_label": "Energia absorvida",
-        "compute": lambda v: v["m"] * v["c"] * v["delta_t"],
         "unit": "J",
-    },
-    "Calor Específico": {
-        "formula": "c = Q / (m × ΔT)",
-        "where": "Onde:\nQ = energia absorvida\nm = massa\nΔT = variação de temperatura",
-        "explain": "Este cálculo estima a capacidade térmica do material em absorver calor.",
-        "fields": [
-            CalculationField("m", "Massa (g)", "Ex.: 100"),
-            CalculationField("energia", "Energia (J)", "Ex.: 18000"),
-            CalculationField("delta_t", "ΔT (°C)", "Ex.: 29"),
-        ],
-        "result_label": "Calor específico",
-        "compute": lambda v: v["energia"] / (v["m"] * v["delta_t"]) if v["m"] and v["delta_t"] else 0,
-        "unit": "J/g°C",
     },
     "Calor Sensível": {
         "formula": "Q = m × c × ΔT",
-        "where": "Onde:\nm = massa\nc = calor específico\nΔT = variação de temperatura",
+        "where": (
+            "Onde:\n"
+            "m = massa\n"
+            "ΔT = variação de temperatura\n\n"
+            "Calor específico: 2.0 kJ/kg·°C (valor fixo adotado com base em dados típicos de materiais orgânicos semelhantes à cera de coco)"
+        ),
         "explain": "Este cálculo determina a energia absorvida pelo material durante o aquecimento sensível.",
         "fields": [
             CalculationField("m", "Massa (g)", "Ex.: 100"),
-            CalculationField("c", "Calor específico (J/g°C)", "Ex.: 2.1"),
             CalculationField("delta_t", "ΔT (°C)", "Ex.: 29"),
         ],
         "result_label": "Calor sensível",
-        "compute": lambda v: v["m"] * v["c"] * v["delta_t"],
         "unit": "J",
     },
     "Calor Latente": {
         "formula": "Q = m × L",
-        "where": "Onde:\nm = massa\nL = calor latente específico",
+        "where": (
+            "Onde:\n"
+            "m = massa\n"
+            "L = calor latente específico\n\n"
+            "Calor específico: 2.0 kJ/kg·°C (valor fixo adotado com base em dados típicos de materiais orgânicos semelhantes à cera de coco)"
+        ),
         "explain": "Este cálculo estima a energia envolvida na mudança de fase do material.",
         "fields": [
             CalculationField("m", "Massa (g)", "Ex.: 100"),
             CalculationField("l", "Calor latente (J/g)", "Ex.: 180"),
         ],
         "result_label": "Calor latente",
-        "compute": lambda v: v["m"] * v["l"],
         "unit": "J",
     },
 }
@@ -96,7 +95,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
     ) -> None:
         # UI REFATORADA: painel de cálculos com cards e botões padronizados
         super().__init__(parent, fg_color=THEME_COLORS["bg"])
-        self.db = db_manager
+        self.controller = ControllerCalculos(db_manager)
         self._on_calculation_saved = on_calculation_saved
         self._experiment_rows: list = []
         self._experiment_map: dict[str, dict] = {}
@@ -106,6 +105,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self._last_calc_type: str | None = None
 
         self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
         title = ctk.CTkLabel(
             self,
@@ -122,16 +122,16 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
     # --- Organização principal ------------------------------------------
     def create_calculos_frame(self) -> None:
         self._configure_ttk_style()
-        body = ctk.CTkFrame(self, fg_color="transparent")
+        body = ctk.CTkScrollableFrame(self, fg_color="transparent")
         body.grid(row=1, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_LARGE))
         body.grid_columnconfigure(0, weight=1)
-        body.grid_rowconfigure(2, weight=1)
 
         self._build_selection_panel(body)
         self._build_explanation_panel(body)
         self._build_input_panel(body)
         self._build_result_panel(body)
         self._build_guide_panel(body)
+        self._build_computer_simulator_panel(body)
 
     # --- Painéis ---------------------------------------------------------
     def _build_selection_panel(self, parent) -> None:
@@ -301,9 +301,134 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         )
         guide.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
 
+    def _build_computer_simulator_panel(self, parent) -> None:
+        panel = ctk.CTkFrame(parent, **card_style())
+        panel.grid(row=5, column=0, sticky="ew", pady=(PAD_NORMAL, 0))
+        panel.grid_columnconfigure(0, weight=1)
+
+        title = ctk.CTkLabel(
+            panel,
+            text="🆕 Simulação do Computador (PCM)",
+            text_color=THEME_COLORS["text_primary"],
+            font=FONT_TITLE,
+        )
+        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
+
+        self._sim_mode = ctk.StringVar(value="PCM necessário")
+        self._sim_mode_toggle = ctk.CTkSegmentedButton(
+            panel,
+            values=["PCM necessário", "Tempo suportado"],
+            variable=self._sim_mode,
+            command=self._on_sim_mode_changed,
+            font=FONT_NORMAL,
+            height=WIDGET_HEIGHT_NORMAL,
+        )
+        self._sim_mode_toggle.grid(row=1, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
+
+        self._sim_inputs_frame = ctk.CTkFrame(panel, fg_color="transparent")
+        self._sim_inputs_frame.grid(row=2, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
+        self._sim_inputs_frame.grid_columnconfigure(1, weight=1)
+        self._sim_entries: dict[str, ctk.CTkEntry] = {}
+
+        actions = ctk.CTkFrame(panel, fg_color="transparent")
+        actions.grid(row=3, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
+
+        self._sim_btn = ctk.CTkButton(
+            actions,
+            text="SIMULAR",
+            font=FONT_NORMAL,
+            command=self._run_computer_simulation,
+            **button_style("primary"),
+        )
+        self._sim_btn.grid(row=0, column=0, padx=(0, PAD_SMALL))
+
+        self._sim_status_label = ctk.CTkLabel(
+            actions,
+            text="Status: --",
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_NORMAL,
+        )
+        self._sim_status_label.grid(row=0, column=1, padx=(0, PAD_SMALL))
+
+        self._sim_result_label = ctk.CTkLabel(
+            panel,
+            text="Energia: --\nResultado: --",
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_LABEL,
+            justify="left",
+        )
+        self._sim_result_label.grid(row=4, column=0, sticky="w", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
+
+        self._build_sim_inputs(self._sim_mode.get())
+
+    def _on_sim_mode_changed(self, _value: str | None = None) -> None:
+        self._build_sim_inputs(self._sim_mode.get())
+
+    def _build_sim_inputs(self, mode: str) -> None:
+        for widget in list(self._sim_inputs_frame.winfo_children()):
+            widget.destroy()
+        self._sim_entries.clear()
+
+        row = 0
+        row = self._sim_field(self._sim_inputs_frame, row, "power_w", "Potência (W)", "Ex.: 65")
+        if mode == "Tempo suportado":
+            row = self._sim_field(self._sim_inputs_frame, row, "mass_g", "Massa de PCM (g)", "Ex.: 250")
+        else:
+            row = self._sim_field(self._sim_inputs_frame, row, "time_min", "Tempo desejado (min)", "Ex.: 30")
+
+        hint = ctk.CTkLabel(
+            self._sim_inputs_frame,
+            text="Usa calor específico fixo de 2.0 kJ/kg·°C (modelo de referência térmica).",
+            text_color=THEME_COLORS["text_secondary"],
+            font=FONT_SMALL,
+            justify="left",
+        )
+        hint.grid(row=row, column=0, columnspan=2, sticky="w", pady=(PAD_SMALL, 0))
+
+    def _sim_field(self, parent, row: int, key: str, label: str, placeholder: str) -> int:
+        lbl = ctk.CTkLabel(parent, text=label, text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
+        lbl.grid(row=row, column=0, sticky="w", pady=(0, PAD_SMALL))
+        entry = ctk.CTkEntry(parent, placeholder_text=placeholder, height=WIDGET_HEIGHT_NORMAL, font=FONT_NORMAL)
+        entry.grid(row=row, column=1, sticky="ew", padx=(PAD_LARGE, 0), pady=(0, PAD_SMALL))
+        self._sim_entries[key] = entry
+        return row + 1
+
+    def _read_sim_float(self, key: str) -> float:
+        value = self._sim_entries[key].get().strip().replace(",", ".")
+        try:
+            return float(value)
+        except ValueError as exc:
+            raise ValueError(f"Valor inválido para {key}.") from exc
+
+    def _run_computer_simulation(self) -> None:
+        try:
+            power_w = self._read_sim_float("power_w")
+            mode = self._sim_mode.get()
+            if mode == "Tempo suportado":
+                mass_g = self._read_sim_float("mass_g")
+                result = self.controller.simulate_pcm_computer("time_supported", power_w, None, mass_g)
+                extra = f"Tempo suportado: {float(result['time_supported']):.2f} min"
+            else:
+                time_min = self._read_sim_float("time_min")
+                result = self.controller.simulate_pcm_computer("pcm_needed", power_w, time_min, None)
+                extra = f"Massa PCM necessária: {float(result['pcm_mass']):.2f} g"
+        except ValueError as exc:
+            messagebox.showerror("Dados inválidos", str(exc), parent=self.winfo_toplevel())
+            return
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Erro", f"Falha na simulação: {exc}", parent=self.winfo_toplevel())
+            return
+
+        energy = float(result["energy"])
+        status = str(result["status"])
+        status_color = THEME_COLORS["export"] if status == "estável" else THEME_COLORS["danger"]
+
+        self._sim_status_label.configure(text=f"Status: {status}", text_color=status_color)
+        self._sim_result_label.configure(text=f"Energia total: {energy:.2f} J\n{extra}")
+
     # --- Dados ------------------------------------------------------------
     def load_experiment_data(self) -> None:
-        self._experiment_rows = [dict(r) for r in self.db.list_experiments()]
+        self._experiment_rows = self.controller.list_experiments()
         options = []
         self._experiment_map.clear()
 
@@ -323,6 +448,8 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
     def _on_experiment_selected(self) -> None:
         label = self.experiment_combo.get()
         self._selected_experiment = self._experiment_map.get(label)
+        experiment_id = self._selected_experiment.get("id") if self._selected_experiment else None
+        self.controller.set_current_experiment_id(experiment_id)
         self._prefill_inputs()
 
     def _on_calc_selected(self) -> None:
@@ -361,30 +488,13 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         if not experiment:
             return
 
-        massa = experiment.get("massa")
-        delta_t = experiment.get("delta_temperatura")
         calc_type = self.calc_type.get()
-        cached_specific = None
-        cached_energy = None
-        if experiment.get("id") is not None:
-            cached_specific = self.db.get_calculo_by_experimento_tipo(experiment["id"], "Calor Específico")
-            cached_energy = self.db.get_calculo_by_experimento_tipo(experiment["id"], "Energia Absorvida")
-
-        if "m" in self._entries and massa is not None:
-            self._entries["m"].delete(0, "end")
-            self._entries["m"].insert(0, str(massa))
-        if "delta_t" in self._entries and delta_t is not None:
-            self._entries["delta_t"].delete(0, "end")
-            self._entries["delta_t"].insert(0, str(delta_t))
-        if cached_specific is not None and "c" in self._entries:
-            if cached_specific["calor_especifico"] is not None:
-                self._entries["c"].delete(0, "end")
-                self._entries["c"].insert(0, str(cached_specific["calor_especifico"]))
-
-        if calc_type == "Calor Específico" and cached_energy is not None and "energia" in self._entries:
-            if cached_energy["resultado"] is not None:
-                self._entries["energia"].delete(0, "end")
-                self._entries["energia"].insert(0, str(cached_energy["resultado"]))
+        prefill = self.controller.get_prefill_values(experiment, calc_type)
+        for key, value in prefill.items():
+            if key not in self._entries:
+                continue
+            self._entries[key].delete(0, "end")
+            self._entries[key].insert(0, str(value))
 
     # --- Cálculos ---------------------------------------------------------
     def _read_float(self, key: str) -> float:
@@ -410,16 +520,22 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
             messagebox.showerror("Dados inválidos", str(exc), parent=self.winfo_toplevel())
             return
 
-        result = float(definition["compute"](values))
+        try:
+            result = float(self.controller.calculate_thermal(calc_type, values))
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Erro", f"Falha ao calcular: {exc}", parent=self.winfo_toplevel())
+            return
         self._last_result = result
         self._last_calc_type = calc_type
 
         unit = definition.get("unit", "J")
         self.result_label.configure(text=f"{definition['result_label']}: {result:.3f} {unit}")
-        if calc_type == "Calor Específico":
-            self.result_hint.configure(text="Este valor representa a capacidade térmica do material.")
+        referencia = "Este cálculo utiliza um material de referência térmica com calor específico constante."
+        if calc_type == "Calor Latente":
+            base = "Este valor representa a energia envolvida na mudança de fase do material."
         else:
-            self.result_hint.configure(text="Este valor representa a energia térmica armazenada no material.")
+            base = "Este valor representa a energia térmica armazenada no material."
+        self.result_hint.configure(text=f"{base}\n\n{referencia}")
 
     def save_calculation(self) -> None:
         if not self._selected_experiment:
@@ -433,17 +549,14 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         if experiment_id is None:
             return
 
-        payload = {
-            "experimento_id": experiment_id,
-            "massa": self._try_get_value("m"),
-            "calor_especifico": self._infer_calor_especifico(),
-            "delta_t": self._try_get_value("delta_t"),
-            "resultado": self._last_result,
-            "tipo_calculo": self._last_calc_type,
-        }
-
         try:
-            calc_id = self.db.upsert_tabela_calculos(payload)
+            inputs = {k: self._try_get_value(k) for k in ("m", "delta_t", "l")}
+            calc_id = self.controller.save_thermal_calculation(
+                experimento_id=int(experiment_id),
+                tipo_calculo=self._last_calc_type,
+                inputs=inputs,
+                resultado=float(self._last_result),
+            )
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Erro", f"Falha ao salvar cálculo: {exc}", parent=self.winfo_toplevel())
             return
@@ -454,11 +567,6 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
     def update_dashboard_metrics(self) -> None:
         if self._on_calculation_saved is not None:
             self._on_calculation_saved()
-
-    def _infer_calor_especifico(self) -> float | None:
-        if self._last_calc_type == "Calor Específico" and self._last_result is not None:
-            return self._last_result
-        return self._try_get_value("c")
 
     def _try_get_value(self, key: str) -> float | None:
         if key not in self._entries:
