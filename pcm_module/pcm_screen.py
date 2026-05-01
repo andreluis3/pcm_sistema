@@ -12,6 +12,176 @@ from .pcm_repository import PCMRepository
 from .pcm_service import PCMService
 
 
+def calcular_dT_dt(tempo_s: list[float], temperatura_c: list[float]) -> list[float]:
+    """Derivada discreta dT/dt usando diferença entre pontos consecutivos (°C/s).
+
+    Mantém o mesmo comprimento de entrada; dT/dt[0] = 0.0.
+    """
+    if not tempo_s or not temperatura_c:
+        return []
+    n = min(len(tempo_s), len(temperatura_c))
+    if n <= 1:
+        return [0.0] * n
+
+    derivada: list[float] = [0.0]
+    for i in range(1, n):
+        dt = float(tempo_s[i]) - float(tempo_s[i - 1])
+        if dt <= 0:
+            derivada.append(0.0)
+            continue
+        dtemp = float(temperatura_c[i]) - float(temperatura_c[i - 1])
+        derivada.append(dtemp / dt)
+    return derivada
+
+
+def calcular_estabilizacao(
+    tempo_s: list[float],
+    dT_dt: list[float],
+    *,
+    limiar: float = 0.01,
+    janela_s: float = 30.0,
+) -> float | None:
+    """Retorna o tempo (s) onde o sistema estabiliza com |dT/dt| < limiar por uma janela.
+
+    Heurística: exige que a condição seja satisfeita continuamente por ~janela_s.
+    """
+    if not tempo_s or not dT_dt:
+        return None
+
+    n = min(len(tempo_s), len(dT_dt))
+    if n < 4:
+        return None
+
+    # Estima dt típico para converter janela de tempo em janela de pontos.
+    dts = [
+        float(tempo_s[i]) - float(tempo_s[i - 1])
+        for i in range(1, n)
+        if (float(tempo_s[i]) - float(tempo_s[i - 1])) > 0
+    ]
+    if not dts:
+        return None
+    dt_med = sorted(dts)[len(dts) // 2]
+    window_points = max(3, min(40, int(round(janela_s / max(dt_med, 1e-6)))))
+
+    abs_der = [abs(float(v)) for v in dT_dt[:n]]
+    for i in range(1, n - window_points):
+        if all(v < limiar for v in abs_der[i : i + window_points]):
+            return float(tempo_s[i])
+    return None
+
+
+def calcular_metricas_experimento(
+    result: PCMResult,
+    *,
+    temperatura_alvo_c: float = 55.0,
+    limiar_estabilizacao: float = 0.01,
+) -> dict[str, float | None]:
+    """Calcula métricas complementares sem alterar a lógica do PCMService/PCMResult."""
+    tempo_s = result.tempo_s
+    temperatura_c = result.temperatura_c
+
+    duracao_s = float(max(tempo_s)) if tempo_s else float(result.tempo_total)
+    duracao_min = duracao_s / 60.0 if duracao_s is not None else None
+
+    pico_temp = float(result.pico_temperatura)
+    tempo_pico_s = float(result.tempo_pico_temperatura)
+
+    if temperatura_c:
+        delta_t = float(max(temperatura_c) - min(temperatura_c))
+    else:
+        delta_t = 0.0
+
+    heating_rate_c_por_s = (delta_t / duracao_s) if duracao_s > 0 else None
+    heating_rate_c_por_min = (heating_rate_c_por_s * 60.0) if heating_rate_c_por_s is not None else None
+
+    eficiencia = None
+    if float(result.energia_teorica) > 0:
+        eficiencia = (float(result.energia_total) / float(result.energia_teorica)) * 100.0
+
+    # Tempo até temperatura alvo.
+    tempo_ate_alvo_s = None
+    for t, temp in zip(tempo_s, temperatura_c):
+        if float(temp) >= float(temperatura_alvo_c):
+            tempo_ate_alvo_s = float(t)
+            break
+
+    dT_dt = calcular_dT_dt(tempo_s, temperatura_c)
+    tempo_estabilizacao_s = calcular_estabilizacao(tempo_s, dT_dt, limiar=limiar_estabilizacao)
+
+    return {
+        "duracao_s": duracao_s,
+        "duracao_min": duracao_min,
+        "pico_temp_c": pico_temp,
+        "tempo_pico_s": tempo_pico_s,
+        "delta_t_c": delta_t,
+        "taxa_aquecimento_c_min": heating_rate_c_por_min,
+        "eficiencia_percent": eficiencia,
+        "tempo_ate_55c_s": tempo_ate_alvo_s,
+        "tempo_estabilizacao_s": tempo_estabilizacao_s,
+    }
+
+
+def _cor_por_temperatura(temperatura_c: float) -> str:
+    if temperatura_c < 50.0:
+        return "#00C853"  # verde
+    if temperatura_c <= 60.0:
+        return "#FBBF24"  # amarelo
+    return "#EF4444"  # vermelho
+
+
+def _formatar_tempo_min_seg(tempo_s: float | None) -> str:
+    if tempo_s is None:
+        return "--"
+    tempo_s = max(0.0, float(tempo_s))
+    minutos = int(tempo_s // 60)
+    segundos = int(round(tempo_s % 60))
+    return f"{minutos:02d}:{segundos:02d}"
+
+
+class _Tooltip:
+    def __init__(self, widget, text: str) -> None:
+        self.widget = widget
+        self.text = text
+        self._win = None
+        widget.bind("<Enter>", self._show, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+
+    def _show(self, _event=None) -> None:
+        if self._win is not None:
+            return
+        try:
+            x = self.widget.winfo_rootx() + 14
+            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 10
+        except Exception:
+            return
+
+        win = ctk.CTkToplevel(self.widget)
+        win.overrideredirect(True)
+        try:
+            win.attributes("-topmost", True)
+        except Exception:
+            pass
+        win.geometry(f"+{x}+{y}")
+
+        frame = ctk.CTkFrame(win, fg_color="#0B1220", corner_radius=10, border_width=1, border_color="#27415F")
+        frame.pack(fill="both", expand=True)
+        ctk.CTkLabel(
+            frame,
+            text=self.text,
+            font=("Arial", 12),
+            text_color="#E6EEF8",
+            justify="left",
+            wraplength=360,
+        ).pack(padx=12, pady=10)
+        self._win = win
+
+    def _hide(self, _event=None) -> None:
+        if self._win is None:
+            return
+        self._win.destroy()
+        self._win = None
+
+
 class PCMCalcScreen(ctk.CTkFrame):
     BG_COLOR = "#07111F"
     PANEL_COLOR = "#0D1726"
@@ -96,19 +266,60 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         self.kpi_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.kpi_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 16))
-        for column in range(6):
+        for column in range(3):
             self.kpi_frame.grid_columnconfigure(column, weight=1, uniform="kpi")
+        for row in range(3):
+            self.kpi_frame.grid_rowconfigure(row, weight=1, uniform="kpi_row")
 
-        kpis = [
-            ("Energia Total", "-- J"),
-            ("Potencia Media", "-- W"),
-            ("Pico de Potencia", "-- W"),
-            ("Pico de Temperatura", "-- C"),
-            ("Massa de PCM", "-- g"),
-            ("Comparacao Energia", "--"),
+        self._kpi_defs: list[dict[str, str]] = [
+            {
+                "key": "Energia Total Absorvida (J)",
+                "default": "--",
+                "tooltip": "Energia total integrada ao longo do ensaio (J).",
+            },
+            {
+                "key": "Potência Média (W)",
+                "default": "--",
+                "tooltip": "Potência média aplicada/observada durante o ensaio (W).",
+            },
+            {
+                "key": "Massa de PCM (g)",
+                "default": "--",
+                "tooltip": "Massa estimada de PCM necessária para absorver a energia do ensaio (g).",
+            },
+            {
+                "key": "Pico de Temperatura",
+                "default": "--",
+                "tooltip": "Maior temperatura registrada e o instante em que ocorreu.",
+            },
+            {
+                "key": "Tempo de Estabilização",
+                "default": "--",
+                "tooltip": "Instante em que |dT/dt| permanece abaixo do limiar por uma janela (s).",
+            },
+            {
+                "key": "ΔT (Variação)",
+                "default": "--",
+                "tooltip": "Variação térmica total: max(T) − min(T) (°C).",
+            },
+            {
+                "key": "Taxa de Aquecimento",
+                "default": "--",
+                "tooltip": "Taxa média: ΔT / tempo_total (°C/min).",
+            },
+            {
+                "key": "Eficiência Energética (%)",
+                "default": "--",
+                "tooltip": "Eficiência: energia_real / energia_teórica × 100 (%).",
+            },
+            {
+                "key": "Duração do Experimento",
+                "default": "--",
+                "tooltip": "Duração total do ensaio (min).",
+            },
         ]
-        for index, (title, value) in enumerate(kpis):
-            self._create_kpi_card(index, title, value)
+        for index, kpi_def in enumerate(self._kpi_defs):
+            self._create_kpi_card(index, kpi_def["key"], kpi_def["default"], tooltip=kpi_def["tooltip"])
 
         self.chart_section = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.chart_section.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 16))
@@ -174,7 +385,7 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         self._set_initial_content()
 
-    def _create_kpi_card(self, column: int, title: str, default_value: str) -> None:
+    def _create_kpi_card(self, index: int, title: str, default_value: str, *, tooltip: str) -> None:
         card = ctk.CTkFrame(
             self.kpi_frame,
             fg_color=self.PANEL_COLOR,
@@ -182,20 +393,26 @@ class PCMCalcScreen(ctk.CTkFrame):
             border_width=1,
             border_color=self.BORDER_COLOR,
         )
-        card.grid(row=0, column=column, sticky="nsew", padx=6, pady=6)
+        row = index // 3
+        col = index % 3
+        card.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
 
-        ctk.CTkLabel(
+        title_label = ctk.CTkLabel(
             card,
             text=title,
             font=("Arial", 14, "bold"),
             text_color=self.TEXT_SECONDARY,
-        ).pack(anchor="w", padx=18, pady=(16, 8))
+        )
+        title_label.pack(anchor="w", padx=18, pady=(16, 8))
+        _Tooltip(title_label, tooltip)
 
         value_label = ctk.CTkLabel(
             card,
             text=default_value,
-            font=("Arial", 24, "bold"),
+            font=("Arial", 22, "bold"),
             text_color=self.TEXT_PRIMARY,
+            justify="left",
+            wraplength=320,
         )
         value_label.pack(anchor="w", padx=18, pady=(0, 16))
         self.kpi_values[title] = value_label
@@ -270,16 +487,40 @@ class PCMCalcScreen(ctk.CTkFrame):
         self._update_dashboard(result)
 
     def _update_dashboard(self, result: PCMResult) -> None:
-        self.kpi_values["Energia Total"].configure(text=f"{result.energia_total:.2f} J")
-        self.kpi_values["Potencia Media"].configure(text=f"{result.potencia_media:.2f} W")
-        self.kpi_values["Pico de Potencia"].configure(text=f"{result.pico_potencia:.2f} W")
-        self.kpi_values["Pico de Temperatura"].configure(text=f"{result.pico_temperatura:.2f} C")
-        self.kpi_values["Massa de PCM"].configure(text=f"{result.massa_pcm:.2f} g")
-        self.kpi_values["Comparacao Energia"].configure(
-            text=f"{result.energia_total:.0f} / {result.energia_teorica:.0f} J\nErro: {result.erro_percentual:.1f}%"
+        metricas = calcular_metricas_experimento(result)
+
+        self.kpi_values["Energia Total Absorvida (J)"].configure(text=f"{result.energia_total:.0f} J")
+        self.kpi_values["Potência Média (W)"].configure(text=f"{result.potencia_media:.2f} W")
+        self.kpi_values["Massa de PCM (g)"].configure(text=f"{result.massa_pcm:.2f} g")
+
+        pico_text = f"{metricas['pico_temp_c']:.2f} °C @ {_formatar_tempo_min_seg(metricas['tempo_pico_s'])}"
+        self.kpi_values["Pico de Temperatura"].configure(text=pico_text, text_color=_cor_por_temperatura(result.pico_temperatura))
+
+        tempo_estab = metricas["tempo_estabilizacao_s"]
+        self.kpi_values["Tempo de Estabilização"].configure(text=_formatar_tempo_min_seg(tempo_estab))
+
+        self.kpi_values["ΔT (Variação)"].configure(text=f"{metricas['delta_t_c']:.2f} °C")
+
+        taxa = metricas["taxa_aquecimento_c_min"]
+        self.kpi_values["Taxa de Aquecimento"].configure(text=f"{taxa:.3f} °C/min" if taxa is not None else "--")
+
+        eficiencia = metricas["eficiencia_percent"]
+        self.kpi_values["Eficiência Energética (%)"].configure(text=f"{eficiencia:.1f} %" if eficiencia is not None else "--")
+
+        self.kpi_values["Duração do Experimento"].configure(
+            text=f"{metricas['duracao_min']:.2f} min" if metricas["duracao_min"] is not None else "--"
         )
 
         analysis_lines = ["[Analise Tecnica]"]
+        analysis_lines.append(
+            f"- Pico: {result.pico_temperatura:.2f}°C em {_formatar_tempo_min_seg(result.tempo_pico_temperatura)}."
+        )
+        analysis_lines.append(
+            f"- Tempo até 55°C: {_formatar_tempo_min_seg(metricas['tempo_ate_55c_s'])}."
+        )
+        analysis_lines.append(
+            f"- Estabilização (|dT/dt|<0.01): {_formatar_tempo_min_seg(metricas['tempo_estabilizacao_s'])}."
+        )
         analysis_lines.extend(f"- {line}" for line in result.analise_tecnica)
         analysis_lines.append(f"- Delta de tempo total analisado: {result.delta_tempo:.2f} s.")
         analysis_lines.append(f"- Temperatura media registrada: {result.temperatura_media:.2f} C.")
@@ -299,9 +540,9 @@ class PCMCalcScreen(ctk.CTkFrame):
         axes = [figure.add_subplot(211), figure.add_subplot(212)]
         titles = [
             "Temperatura vs Tempo",
-            "Energia Real vs Teorica",
+            "dT/dt vs Tempo",
         ]
-        y_labels = ["Temperatura (C)", "Energia (J)"]
+        y_labels = ["Temperatura (°C)", "dT/dt (°C/s)"]
 
         for axis, title, ylabel in zip(axes, titles, y_labels):
             axis.set_facecolor(self.CARD_COLOR)
@@ -316,8 +557,21 @@ class PCMCalcScreen(ctk.CTkFrame):
                 axis.spines[side].set_color(self.BORDER_COLOR)
 
         time_values = result.tempo_s
+        temps = result.temperatura_c
+        metricas = calcular_metricas_experimento(result)
+        tempo_55 = metricas["tempo_ate_55c_s"]
+        tempo_pico = metricas["tempo_pico_s"]
+        tempo_estab = metricas["tempo_estabilizacao_s"]
 
-        axes[0].plot(time_values, result.temperatura_c, color=self.TEMP_COLOR, linewidth=2.2, label="Temperatura")
+        # Faixa de atuação do PCM (50°C a 60°C)
+        axes[0].axhspan(50.0, 60.0, color="#FBBF24", alpha=0.12, label="Faixa PCM 50–60°C")
+
+        # Linha de temperatura com cores por faixa (verde/amarelo/vermelho).
+        # Mantém implementação simples: linha base + pontos coloridos para realce.
+        axes[0].plot(time_values, temps, color="#CBD5E1", linewidth=1.4, alpha=0.55, label="Temperatura (base)")
+        cores = [_cor_por_temperatura(float(t)) for t in temps]
+        axes[0].scatter(time_values, temps, c=cores, s=10, alpha=0.95, linewidths=0)
+
         axes[0].plot(
             time_values,
             result.temperatura_media_movel,
@@ -336,7 +590,7 @@ class PCMCalcScreen(ctk.CTkFrame):
             zorder=5,
             label="Pico",
         )
-        delta_T = result.pico_temperatura - result.temperatura_c[0]
+        delta_T = metricas["delta_t_c"]
         axes[0].text(
             0.02,
             0.92,
@@ -346,32 +600,45 @@ class PCMCalcScreen(ctk.CTkFrame):
             fontsize=12,
             fontweight="bold",
         )
-        axes[0].legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
 
-        energia_teorica = [50 * t for t in time_values]
-        axes[1].plot(time_values, result.energia_j, color="#F59E0B", linewidth=2.5, label="Energia Real")
-        axes[1].plot(
-            time_values,
-            energia_teorica,
-            linestyle="--",
-            color="#AAAAAA",
-            linewidth=2.0,
-            label="Teórico (50W)",
+        if tempo_55 is not None:
+            axes[0].axvline(tempo_55, color="#FBBF24", linestyle="--", linewidth=1.6, alpha=0.95, label="Tempo até 55°C")
+        if tempo_pico is not None:
+            axes[0].axvline(tempo_pico, color="#FFE082", linestyle="--", linewidth=1.6, alpha=0.95, label="Tempo do pico")
+        if tempo_estab is not None:
+            axes[0].axvline(tempo_estab, color="#63D297", linestyle=":", linewidth=1.8, alpha=0.95, label="Estabilização")
+
+        indicadores = [
+            f"t55={_formatar_tempo_min_seg(tempo_55)}",
+            f"tpico={_formatar_tempo_min_seg(tempo_pico)}",
+            f"testab={_formatar_tempo_min_seg(tempo_estab)}",
+        ]
+        axes[0].text(
+            0.98,
+            0.92,
+            "  ".join(indicadores),
+            transform=axes[0].transAxes,
+            ha="right",
+            color=self.TEXT_SECONDARY,
+            fontsize=10,
         )
 
-        sensivel_x, sensivel_y = [], []
-        latente_x, latente_y = [], []
+        axes[0].legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
 
-        for t, e, fase in zip(time_values, result.energia_j, result.fase_pcm):
-            if fase == "sensivel":
-                sensivel_x.append(t)
-                sensivel_y.append(e)
-            else:
-                latente_x.append(t)
-                latente_y.append(e)
+        # dT/dt (diferença entre pontos consecutivos).
+        dT_dt = calcular_dT_dt(time_values, temps)
+        axes[1].plot(time_values[: len(dT_dt)], dT_dt, color="#94A3B8", linewidth=2.0, label="dT/dt")
+        axes[1].axhline(0.0, color="#CBD5E1", linewidth=1.0, alpha=0.6)
+        axes[1].axhline(0.01, color="#63D297", linestyle="--", linewidth=1.2, alpha=0.85, label="|dT/dt| limiar")
+        axes[1].axhline(-0.01, color="#63D297", linestyle="--", linewidth=1.2, alpha=0.85)
 
-        axes[1].scatter(sensivel_x, sensivel_y, color="#4A90E2", s=10, label="Calor Sensivel")
-        axes[1].scatter(latente_x, latente_y, color="#F25F5C", s=10, label="Calor Latente")
+        if tempo_estab is not None:
+            axes[1].axvline(tempo_estab, color="#63D297", linestyle=":", linewidth=1.8, alpha=0.95, label="Estabilização")
+        if tempo_55 is not None:
+            axes[1].axvline(tempo_55, color="#FBBF24", linestyle="--", linewidth=1.2, alpha=0.85, label="55°C")
+        if tempo_pico is not None:
+            axes[1].axvline(tempo_pico, color="#FFE082", linestyle="--", linewidth=1.2, alpha=0.85, label="Pico")
+
         axes[1].legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
 
         figure.subplots_adjust(left=0.08, right=0.98, top=0.96, bottom=0.07, hspace=0.34)
