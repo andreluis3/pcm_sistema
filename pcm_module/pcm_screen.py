@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from tkinter import filedialog, messagebox
 
@@ -32,6 +33,75 @@ def calcular_dT_dt(tempo_s: list[float], temperatura_c: list[float]) -> list[flo
         dtemp = float(temperatura_c[i]) - float(temperatura_c[i - 1])
         derivada.append(dtemp / dt)
     return derivada
+
+
+def _tempo_na_faixa_pcm_linear(
+    tempo_s: list[float],
+    temperatura_c: list[float],
+    *,
+    pcm_min_c: float,
+    pcm_max_c: float,
+) -> float:
+    """Tempo total (s) em que a temperatura permaneceu dentro [pcm_min_c, pcm_max_c].
+
+    Assume variação linear entre amostras e calcula a interseção por segmento.
+    """
+    if not tempo_s or not temperatura_c:
+        return 0.0
+    n = min(len(tempo_s), len(temperatura_c))
+    if n < 2:
+        return 0.0
+
+    faixa_min = float(min(pcm_min_c, pcm_max_c))
+    faixa_max = float(max(pcm_min_c, pcm_max_c))
+
+    total = 0.0
+    for i in range(1, n):
+        t0 = float(tempo_s[i - 1])
+        t1 = float(tempo_s[i])
+        dt = t1 - t0
+        if dt <= 0:
+            continue
+
+        T0 = float(temperatura_c[i - 1])
+        T1 = float(temperatura_c[i])
+
+        # Segmento constante.
+        if T0 == T1:
+            if faixa_min <= T0 <= faixa_max:
+                total += dt
+            continue
+
+        # Parametriza T(t) = T0 + a*(t-t0), com a = (T1-T0)/dt.
+        a = (T1 - T0) / dt
+
+        # Encontra intervalos em tempo onde T está dentro da faixa.
+        # Resolve limites em termos de t: t = t0 + (Tlim - T0)/a.
+        t_enter = t0
+        t_exit = t1
+
+        # Para cada limite, atualiza o intervalo de interseção.
+        for Tlim, is_lower in ((faixa_min, True), (faixa_max, False)):
+            tcross = t0 + (Tlim - T0) / a
+            if is_lower:
+                if a > 0:
+                    t_enter = max(t_enter, tcross)
+                else:
+                    t_exit = min(t_exit, tcross)
+            else:
+                if a > 0:
+                    t_exit = min(t_exit, tcross)
+                else:
+                    t_enter = max(t_enter, tcross)
+
+        # Clipa ao segmento original.
+        t_enter = max(t0, min(t_enter, t1))
+        t_exit = max(t0, min(t_exit, t1))
+
+        if t_exit > t_enter:
+            total += t_exit - t_enter
+
+    return max(0.0, total)
 
 
 def calcular_estabilizacao(
@@ -74,7 +144,8 @@ def calcular_metricas_experimento(
     result: PCMResult,
     *,
     temperatura_alvo_c: float = 55.0,
-    limiar_estabilizacao: float = 0.01,
+    pcm_min_c: float = 50.0,
+    pcm_max_c: float = 60.0,
 ) -> dict[str, float | None]:
     """Calcula métricas complementares sem alterar a lógica do PCMService/PCMResult."""
     tempo_s = result.tempo_s
@@ -105,8 +176,12 @@ def calcular_metricas_experimento(
             tempo_ate_alvo_s = float(t)
             break
 
-    dT_dt = calcular_dT_dt(tempo_s, temperatura_c)
-    tempo_estabilizacao_s = calcular_estabilizacao(tempo_s, dT_dt, limiar=limiar_estabilizacao)
+    tempo_atuacao_pcm_s = _tempo_na_faixa_pcm_linear(
+        tempo_s,
+        temperatura_c,
+        pcm_min_c=float(pcm_min_c),
+        pcm_max_c=float(pcm_max_c),
+    )
 
     return {
         "duracao_s": duracao_s,
@@ -117,16 +192,8 @@ def calcular_metricas_experimento(
         "taxa_aquecimento_c_min": heating_rate_c_por_min,
         "eficiencia_percent": eficiencia,
         "tempo_ate_55c_s": tempo_ate_alvo_s,
-        "tempo_estabilizacao_s": tempo_estabilizacao_s,
+        "tempo_atuacao_pcm_s": tempo_atuacao_pcm_s,
     }
-
-
-def _cor_por_temperatura(temperatura_c: float) -> str:
-    if temperatura_c < 50.0:
-        return "#00C853"  # verde
-    if temperatura_c <= 60.0:
-        return "#FBBF24"  # amarelo
-    return "#EF4444"  # vermelho
 
 
 def _formatar_tempo_min_seg(tempo_s: float | None) -> str:
@@ -163,13 +230,13 @@ class _Tooltip:
             pass
         win.geometry(f"+{x}+{y}")
 
-        frame = ctk.CTkFrame(win, fg_color="#0B1220", corner_radius=10, border_width=1, border_color="#27415F")
+        frame = ctk.CTkFrame(win, fg_color="#0B0F16", corner_radius=10, border_width=1, border_color="#334155")
         frame.pack(fill="both", expand=True)
         ctk.CTkLabel(
             frame,
             text=self.text,
             font=("Arial", 12),
-            text_color="#E6EEF8",
+            text_color="#F3F4F6",
             justify="left",
             wraplength=360,
         ).pack(padx=12, pady=10)
@@ -183,17 +250,17 @@ class _Tooltip:
 
 
 class PCMCalcScreen(ctk.CTkFrame):
-    BG_COLOR = "#07111F"
-    PANEL_COLOR = "#0D1726"
-    CARD_COLOR = "#132238"
-    BORDER_COLOR = "#27415F"
-    TEXT_PRIMARY = "#E6EEF8"
-    TEXT_SECONDARY = "#93A4B8"
-    SUCCESS_COLOR = "#63D297"
-    TEMP_COLOR = "#F25F5C"
-    POWER_COLOR = "#4A90E2"
-    ENERGY_COLOR = "#F59E0B"
-    ENERGY_FILL = "#2FBF71"
+    BG_COLOR = "#0B0F16"
+    PANEL_COLOR = "#111827"
+    CARD_COLOR = "#0F172A"
+    BORDER_COLOR = "#334155"
+    TEXT_PRIMARY = "#F3F4F6"
+    TEXT_SECONDARY = "#9CA3AF"
+    SUCCESS_COLOR = "#E5E7EB"
+    TEMP_COLOR = "#E5E7EB"
+    POWER_COLOR = "#6B7280"
+    ENERGY_COLOR = "#D1D5DB"
+    ENERGY_FILL = "#9CA3AF"
 
     def __init__(self, parent) -> None:
         super().__init__(parent, fg_color=self.BG_COLOR)
@@ -202,6 +269,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.current_result: PCMResult | None = None
         self.chart_canvases: list[FigureCanvasTkAgg] = []
         self.kpi_values: dict[str, ctk.CTkLabel] = {}
+        self.kpi_subvalues: dict[str, ctk.CTkLabel] = {}
 
         self._build_layout()
 
@@ -251,7 +319,7 @@ class PCMCalcScreen(ctk.CTkFrame):
             width=190,
             height=42,
             fg_color=self.POWER_COLOR,
-            hover_color="#3A77BF",
+            hover_color="#4B5563",
             font=("Arial", 15, "bold"),
         )
         self.import_button.pack()
@@ -266,36 +334,36 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         self.kpi_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.kpi_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 16))
-        for column in range(3):
+        for column in range(4):
             self.kpi_frame.grid_columnconfigure(column, weight=1, uniform="kpi")
-        for row in range(3):
+        for row in range(2):
             self.kpi_frame.grid_rowconfigure(row, weight=1, uniform="kpi_row")
 
         self._kpi_defs: list[dict[str, str]] = [
             {
-                "key": "Energia Total Absorvida (J)",
+                "key": "Energia Total",
                 "default": "--",
                 "tooltip": "Energia total integrada ao longo do ensaio (J).",
             },
             {
-                "key": "Potência Média (W)",
+                "key": "Potência Média",
                 "default": "--",
                 "tooltip": "Potência média aplicada/observada durante o ensaio (W).",
             },
             {
-                "key": "Massa de PCM (g)",
+                "key": "Massa PCM",
                 "default": "--",
                 "tooltip": "Massa estimada de PCM necessária para absorver a energia do ensaio (g).",
             },
             {
                 "key": "Pico de Temperatura",
                 "default": "--",
-                "tooltip": "Maior temperatura registrada e o instante em que ocorreu.",
+                "tooltip": "Maior temperatura registrada durante o ensaio (°C).",
             },
             {
-                "key": "Tempo de Estabilização",
+                "key": "Tempo de Atuação do PCM",
                 "default": "--",
-                "tooltip": "Instante em que |dT/dt| permanece abaixo do limiar por uma janela (s).",
+                "tooltip": "Tempo total em que 50°C ≤ T ≤ 60°C (min).",
             },
             {
                 "key": "ΔT (Variação)",
@@ -303,12 +371,7 @@ class PCMCalcScreen(ctk.CTkFrame):
                 "tooltip": "Variação térmica total: max(T) − min(T) (°C).",
             },
             {
-                "key": "Taxa de Aquecimento",
-                "default": "--",
-                "tooltip": "Taxa média: ΔT / tempo_total (°C/min).",
-            },
-            {
-                "key": "Eficiência Energética (%)",
+                "key": "Eficiência",
                 "default": "--",
                 "tooltip": "Eficiência: energia_real / energia_teórica × 100 (%).",
             },
@@ -393,8 +456,8 @@ class PCMCalcScreen(ctk.CTkFrame):
             border_width=1,
             border_color=self.BORDER_COLOR,
         )
-        row = index // 3
-        col = index % 3
+        row = index // 4
+        col = index % 4
         card.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
 
         title_label = ctk.CTkLabel(
@@ -416,6 +479,16 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
         value_label.pack(anchor="w", padx=18, pady=(0, 16))
         self.kpi_values[title] = value_label
+
+        sub_label = ctk.CTkLabel(
+            card,
+            text="",
+            font=("Arial", 12),
+            text_color=self.TEXT_SECONDARY,
+            justify="left",
+            wraplength=320,
+        )
+        self.kpi_subvalues[title] = sub_label
 
     def _set_initial_content(self) -> None:
         self._write_text(
@@ -476,7 +549,7 @@ class PCMCalcScreen(ctk.CTkFrame):
             self.repository.save(result)
         except Exception as exc:
             messagebox.showerror("Falha ao processar CSV", str(exc))
-            self.status_label.configure(text="Falha ao processar o arquivo selecionado.", text_color="#F87171")
+            self.status_label.configure(text="Falha ao processar o arquivo selecionado.", text_color=self.TEXT_PRIMARY)
             return
 
         self.current_result = result
@@ -489,23 +562,27 @@ class PCMCalcScreen(ctk.CTkFrame):
     def _update_dashboard(self, result: PCMResult) -> None:
         metricas = calcular_metricas_experimento(result)
 
-        self.kpi_values["Energia Total Absorvida (J)"].configure(text=f"{result.energia_total:.0f} J")
-        self.kpi_values["Potência Média (W)"].configure(text=f"{result.potencia_media:.2f} W")
-        self.kpi_values["Massa de PCM (g)"].configure(text=f"{result.massa_pcm:.2f} g")
+        self.kpi_values["Energia Total"].configure(text=f"{result.energia_total:.0f} J")
+        self.kpi_values["Potência Média"].configure(text=f"{result.potencia_media:.2f} W")
+        self.kpi_values["Massa PCM"].configure(text=f"{result.massa_pcm:.2f} g")
 
-        pico_text = f"{metricas['pico_temp_c']:.2f} °C @ {_formatar_tempo_min_seg(metricas['tempo_pico_s'])}"
-        self.kpi_values["Pico de Temperatura"].configure(text=pico_text, text_color=_cor_por_temperatura(result.pico_temperatura))
+        self.kpi_values["Pico de Temperatura"].configure(text=f"{metricas['pico_temp_c']:.0f} °C")
+        pico_sub = self.kpi_subvalues["Pico de Temperatura"]
+        pico_sub.configure(text=f"t_pico: {_formatar_tempo_min_seg(metricas['tempo_pico_s'])}")
+        if not pico_sub.winfo_ismapped():
+            pico_sub.pack(anchor="w", padx=18, pady=(0, 16))
 
-        tempo_estab = metricas["tempo_estabilizacao_s"]
-        self.kpi_values["Tempo de Estabilização"].configure(text=_formatar_tempo_min_seg(tempo_estab))
+        tempo_pcm_min = float(metricas["tempo_atuacao_pcm_s"] or 0.0) / 60.0
+        self.kpi_values["Tempo de Atuação do PCM"].configure(text=f"{tempo_pcm_min:.0f} min")
+        pcm_sub = self.kpi_subvalues["Tempo de Atuação do PCM"]
+        pcm_sub.configure(text="Faixa: 50–60°C")
+        if not pcm_sub.winfo_ismapped():
+            pcm_sub.pack(anchor="w", padx=18, pady=(0, 16))
 
         self.kpi_values["ΔT (Variação)"].configure(text=f"{metricas['delta_t_c']:.2f} °C")
 
-        taxa = metricas["taxa_aquecimento_c_min"]
-        self.kpi_values["Taxa de Aquecimento"].configure(text=f"{taxa:.3f} °C/min" if taxa is not None else "--")
-
         eficiencia = metricas["eficiencia_percent"]
-        self.kpi_values["Eficiência Energética (%)"].configure(text=f"{eficiencia:.1f} %" if eficiencia is not None else "--")
+        self.kpi_values["Eficiência"].configure(text=f"{eficiencia:.1f} %" if eficiencia is not None else "--")
 
         self.kpi_values["Duração do Experimento"].configure(
             text=f"{metricas['duracao_min']:.2f} min" if metricas["duracao_min"] is not None else "--"
@@ -518,9 +595,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         analysis_lines.append(
             f"- Tempo até 55°C: {_formatar_tempo_min_seg(metricas['tempo_ate_55c_s'])}."
         )
-        analysis_lines.append(
-            f"- Estabilização (|dT/dt|<0.01): {_formatar_tempo_min_seg(metricas['tempo_estabilizacao_s'])}."
-        )
+        analysis_lines.append(f"- Atuação do PCM (50–60°C): {(tempo_pcm_min):.2f} min.")
         analysis_lines.extend(f"- {line}" for line in result.analise_tecnica)
         analysis_lines.append(f"- Delta de tempo total analisado: {result.delta_tempo:.2f} s.")
         analysis_lines.append(f"- Temperatura media registrada: {result.temperatura_media:.2f} C.")
@@ -534,23 +609,17 @@ class PCMCalcScreen(ctk.CTkFrame):
     def _render_charts(self, result: PCMResult) -> None:
         self._clear_charts()
 
-        figure = Figure(figsize=(11.8, 7.8), dpi=100)
+        figure = Figure(figsize=(11.8, 9.2), dpi=100)
         figure.patch.set_facecolor(self.PANEL_COLOR)
 
-        axes = [figure.add_subplot(211), figure.add_subplot(212)]
-        titles = [
-            "Temperatura vs Tempo",
-            "dT/dt vs Tempo",
-        ]
-        y_labels = ["Temperatura (°C)", "dT/dt (°C/s)"]
+        ax_temp = figure.add_subplot(311)
+        ax_hist = figure.add_subplot(312)
+        ax_map = figure.add_subplot(313)
 
-        for axis, title, ylabel in zip(axes, titles, y_labels):
+        for axis in (ax_temp, ax_hist, ax_map):
             axis.set_facecolor(self.CARD_COLOR)
-            axis.set_title(title, color=self.TEXT_PRIMARY, fontsize=14, pad=12)
-            axis.set_xlabel("Tempo (s)", color=self.TEXT_PRIMARY, fontsize=10)
-            axis.set_ylabel(ylabel, color=self.TEXT_PRIMARY, fontsize=10)
             axis.tick_params(colors=self.TEXT_SECONDARY, labelsize=9)
-            axis.grid(True, linestyle="--", linewidth=0.6, alpha=0.22, color="#D6E4F0")
+            axis.grid(True, linestyle="--", linewidth=0.6, alpha=0.18, color="#9CA3AF")
             for side in ["top", "right"]:
                 axis.spines[side].set_visible(False)
             for side in ["bottom", "left"]:
@@ -558,90 +627,168 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         time_values = result.tempo_s
         temps = result.temperatura_c
+        if not time_values or not temps:
+            ax_temp.set_title("Temperatura vs Tempo", color=self.TEXT_PRIMARY, fontsize=14, pad=12)
+            ax_temp.text(
+                0.5,
+                0.5,
+                "Sem dados de temperatura para plotar.",
+                transform=ax_temp.transAxes,
+                ha="center",
+                va="center",
+                fontsize=12,
+                color=self.TEXT_SECONDARY,
+            )
+            ax_hist.set_visible(False)
+            ax_map.set_visible(False)
+            figure.subplots_adjust(left=0.07, right=0.97, top=0.96, bottom=0.06, hspace=0.38)
+
+            canvas = FigureCanvasTkAgg(figure, master=self.chart_section)
+            widget = canvas.get_tk_widget()
+            widget.grid(row=0, column=0, sticky="nsew")
+            canvas.draw_idle()
+            self.chart_canvases.append(canvas)
+            return
+
         metricas = calcular_metricas_experimento(result)
         tempo_55 = metricas["tempo_ate_55c_s"]
         tempo_pico = metricas["tempo_pico_s"]
-        tempo_estab = metricas["tempo_estabilizacao_s"]
 
-        # Faixa de atuação do PCM (50°C a 60°C)
-        axes[0].axhspan(50.0, 60.0, color="#FBBF24", alpha=0.12, label="Faixa PCM 50–60°C")
+        # --- (1) Temperatura vs Tempo -----------------------------------
+        ax_temp.set_title("Temperatura vs Tempo", color=self.TEXT_PRIMARY, fontsize=14, pad=12)
+        ax_temp.set_xlabel("Tempo (s)", color=self.TEXT_PRIMARY, fontsize=10)
+        ax_temp.set_ylabel("Temperatura (°C)", color=self.TEXT_PRIMARY, fontsize=10)
 
-        # Linha de temperatura com cores por faixa (verde/amarelo/vermelho).
-        # Mantém implementação simples: linha base + pontos coloridos para realce.
-        axes[0].plot(time_values, temps, color="#CBD5E1", linewidth=1.4, alpha=0.55, label="Temperatura (base)")
-        cores = [_cor_por_temperatura(float(t)) for t in temps]
-        axes[0].scatter(time_values, temps, c=cores, s=10, alpha=0.95, linewidths=0)
+        # Faixa de atuação do PCM (50°C a 60°C) em tons neutros.
+        ax_temp.axhspan(50.0, 60.0, color="#E5E7EB", alpha=0.06, label="Faixa PCM 50–60°C")
 
-        axes[0].plot(
-            time_values,
-            result.temperatura_media_movel,
-            color="#F8B4B4",
-            linewidth=1.6,
-            linestyle="--",
-            label="Media movel",
-        )
-        axes[0].scatter(
+        ax_temp.plot(time_values, temps, color="#E5E7EB", linewidth=2.1, alpha=0.95, label="Temperatura")
+        if result.temperatura_media_movel:
+            ax_temp.plot(
+                time_values,
+                result.temperatura_media_movel,
+                color="#9CA3AF",
+                linewidth=1.6,
+                linestyle="--",
+                alpha=0.9,
+                label="Média móvel",
+            )
+
+        ax_temp.scatter(
             [result.tempo_pico_temperatura],
             [result.pico_temperatura],
-            color="#FFE082",
-            edgecolors=self.TEMP_COLOR,
-            linewidths=1.5,
-            s=85,
+            color="#F3F4F6",
+            edgecolors="#9CA3AF",
+            linewidths=1.2,
+            s=70,
             zorder=5,
             label="Pico",
         )
-        delta_T = metricas["delta_t_c"]
-        axes[0].text(
+
+        ax_temp.text(
             0.02,
             0.92,
-            f"ΔT = {delta_T:.2f}°C",
-            transform=axes[0].transAxes,
-            color="#FFE082",
+            f"ΔT = {metricas['delta_t_c']:.2f}°C",
+            transform=ax_temp.transAxes,
+            color="#E5E7EB",
             fontsize=12,
             fontweight="bold",
         )
 
         if tempo_55 is not None:
-            axes[0].axvline(tempo_55, color="#FBBF24", linestyle="--", linewidth=1.6, alpha=0.95, label="Tempo até 55°C")
+            ax_temp.axvline(tempo_55, color="#9CA3AF", linestyle="--", linewidth=1.4, alpha=0.9, label="Tempo até 55°C")
         if tempo_pico is not None:
-            axes[0].axvline(tempo_pico, color="#FFE082", linestyle="--", linewidth=1.6, alpha=0.95, label="Tempo do pico")
-        if tempo_estab is not None:
-            axes[0].axvline(tempo_estab, color="#63D297", linestyle=":", linewidth=1.8, alpha=0.95, label="Estabilização")
+            ax_temp.axvline(tempo_pico, color="#D1D5DB", linestyle="--", linewidth=1.4, alpha=0.9, label="Tempo do pico")
 
         indicadores = [
             f"t55={_formatar_tempo_min_seg(tempo_55)}",
             f"tpico={_formatar_tempo_min_seg(tempo_pico)}",
-            f"testab={_formatar_tempo_min_seg(tempo_estab)}",
+            f"tPCM={(float(metricas['tempo_atuacao_pcm_s'] or 0.0) / 60.0):.0f}min",
         ]
-        axes[0].text(
+        ax_temp.text(
             0.98,
             0.92,
             "  ".join(indicadores),
-            transform=axes[0].transAxes,
+            transform=ax_temp.transAxes,
             ha="right",
             color=self.TEXT_SECONDARY,
             fontsize=10,
         )
+        ax_temp.legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
 
-        axes[0].legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
+        # --- (2) Histograma de temperatura (tempo por faixa) ------------
+        ax_hist.set_title("Histograma de Temperatura (tempo por faixa)", color=self.TEXT_PRIMARY, fontsize=14, pad=12)
+        ax_hist.set_xlabel("Temperatura (°C)", color=self.TEXT_PRIMARY, fontsize=10)
+        ax_hist.set_ylabel("Tempo (min)", color=self.TEXT_PRIMARY, fontsize=10)
+        ax_hist.axvspan(50.0, 60.0, color="#E5E7EB", alpha=0.06)
 
-        # dT/dt (diferença entre pontos consecutivos).
-        dT_dt = calcular_dT_dt(time_values, temps)
-        axes[1].plot(time_values[: len(dT_dt)], dT_dt, color="#94A3B8", linewidth=2.0, label="dT/dt")
-        axes[1].axhline(0.0, color="#CBD5E1", linewidth=1.0, alpha=0.6)
-        axes[1].axhline(0.01, color="#63D297", linestyle="--", linewidth=1.2, alpha=0.85, label="|dT/dt| limiar")
-        axes[1].axhline(-0.01, color="#63D297", linestyle="--", linewidth=1.2, alpha=0.85)
+        min_temp = float(min(temps))
+        max_temp = float(max(temps))
+        step = 5.0
+        start = math.floor(min_temp / step) * step
+        end = math.ceil(max_temp / step) * step
+        edges = [start + i * step for i in range(int(round((end - start) / step)) + 1)]
+        if len(edges) < 2:
+            edges = [min_temp, max_temp]
 
-        if tempo_estab is not None:
-            axes[1].axvline(tempo_estab, color="#63D297", linestyle=":", linewidth=1.8, alpha=0.95, label="Estabilização")
-        if tempo_55 is not None:
-            axes[1].axvline(tempo_55, color="#FBBF24", linestyle="--", linewidth=1.2, alpha=0.85, label="55°C")
-        if tempo_pico is not None:
-            axes[1].axvline(tempo_pico, color="#FFE082", linestyle="--", linewidth=1.2, alpha=0.85, label="Pico")
+        # Soma dt por bin usando temperatura média do segmento (aproximação robusta).
+        bin_minutes = [0.0 for _ in range(len(edges) - 1)]
+        for i in range(1, min(len(time_values), len(temps))):
+            t0 = float(time_values[i - 1])
+            t1 = float(time_values[i])
+            dt = t1 - t0
+            if dt <= 0:
+                continue
+            tmid = 0.5 * (float(temps[i - 1]) + float(temps[i]))
+            idx = int((tmid - start) // step)
+            idx = max(0, min(idx, len(bin_minutes) - 1))
+            bin_minutes[idx] += dt / 60.0
 
-        axes[1].legend(facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, labelcolor=self.TEXT_PRIMARY)
+        centers = [(edges[i] + edges[i + 1]) / 2.0 for i in range(len(edges) - 1)]
+        ax_hist.bar(centers, bin_minutes, width=step * 0.92, color="#D1D5DB", edgecolor="#9CA3AF", linewidth=0.8)
 
-        figure.subplots_adjust(left=0.08, right=0.98, top=0.96, bottom=0.07, hspace=0.34)
+        # --- (3) Heatmap térmico simples -------------------------------
+        ax_map.set_title("Mapa térmico (temperatura ao longo do tempo)", color=self.TEXT_PRIMARY, fontsize=14, pad=12)
+        ax_map.set_xlabel("Tempo (s)", color=self.TEXT_PRIMARY, fontsize=10)
+        ax_map.set_yticks([])
+        ax_map.grid(False)
+
+        # Suaviza para um visual mais "dissipativo" sem distorcer a escala.
+        window = 7
+        half = window // 2
+        temps_smooth: list[float] = []
+        for i in range(len(temps)):
+            lo = max(0, i - half)
+            hi = min(len(temps), i + half + 1)
+            temps_smooth.append(sum(float(v) for v in temps[lo:hi]) / float(hi - lo))
+
+        rows = 26
+        center = (rows - 1) / 2.0
+        sigma = rows / 6.0
+        ambient = float(min_temp)
+        matrix: list[list[float]] = []
+        for r in range(rows):
+            w = math.exp(-((r - center) ** 2) / (2.0 * sigma * sigma))
+            row_vals = [ambient + (float(t) - ambient) * w for t in temps_smooth]
+            matrix.append(row_vals)
+
+        im = ax_map.imshow(
+            matrix,
+            aspect="auto",
+            origin="lower",
+            cmap="Greys",
+            extent=[float(time_values[0]), float(time_values[len(temps_smooth) - 1]), 0.0, 1.0],
+            vmin=min_temp,
+            vmax=max_temp,
+            interpolation="bilinear",
+        )
+        cbar = figure.colorbar(im, ax=ax_map, fraction=0.02, pad=0.02)
+        cbar.set_label("°C", color=self.TEXT_PRIMARY)
+        cbar.ax.yaxis.set_tick_params(color=self.TEXT_SECONDARY)
+        for tick in cbar.ax.get_yticklabels():
+            tick.set_color(self.TEXT_SECONDARY)
+
+        figure.subplots_adjust(left=0.07, right=0.97, top=0.96, bottom=0.06, hspace=0.38)
 
         canvas = FigureCanvasTkAgg(figure, master=self.chart_section)
         widget = canvas.get_tk_widget()
