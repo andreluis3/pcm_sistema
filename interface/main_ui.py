@@ -9,7 +9,7 @@ from .view.export_page import ExportPage
 from .view.thermal_calculations_page import ThermalCalculationsPage
 from pcm_module.pcm_screen import PCMCalcScreen
 
-from services.sensor_service import SensorService  # Versão modular com callback
+
 from database.database_manager import DatabaseManager
 from ui_styles import FONT_SMALL, PAD_LARGE, PAD_NORMAL, THEME_COLORS
 from utils.user_session import clear_user
@@ -32,10 +32,9 @@ class MainUI(ctk.CTk):
         # === Layout principal ===
         self._build_layout()
 
-        # === SensorService modular com callback para atualizar status ===
-        self.sensor_service = SensorService(self.update_status)
-        self.sensor_service.start(self)  # self = root, necessário para after()
-
+   
+      
+        self.sensor_service.start(self)  # self = root, necessário para after()self.after(100, lambda: self.sensor_service.start(self))
         # === Banco de dados ===
         self.db_manager = DatabaseManager()
 
@@ -50,7 +49,8 @@ class MainUI(ctk.CTk):
 
         # Sidebar fixa
         self.sidebar = Sidebar(self, self.load_page, user_name=self.username)
-        self.sidebar.grid(row=0, column=0, sticky="ns")
+        self.sidebar.grid(row=0, column=0, sticky="nsw")
+        self.grid_columnconfigure(0, weight=0)  # 🔥 ESSENCIAL
 
         # Área de conteúdo
         self.main_frame = ctk.CTkFrame(self, fg_color=THEME_COLORS["bg"])
@@ -102,10 +102,19 @@ class MainUI(ctk.CTk):
 
     # Callback para atualizar a barra de status
     def update_status(self, temp):
-        self.status_label.configure(
-            text=f"Sensor: Conectado | Última Temp: {temp:.1f} °C | Usuário: {self.username} | Banco: Ativo"
-        )
-        self.user_label.configure(text=f"Usuário: {self.username}")
+        try:
+            if not self.winfo_exists():
+                return
+
+            self.status_label.configure(
+                text=f"Sensor: Conectado | Última Temp: {temp:.1f} °C | Usuário: {self.username} | Banco: Ativo"
+            )
+
+            self.user_label.configure(text=f"Usuário: {self.username}")
+
+        except Exception as e:
+            print("Erro update_status:", e)
+        
 
     # Carrega uma página no content frame
     def load_page(self, page_name: str):
