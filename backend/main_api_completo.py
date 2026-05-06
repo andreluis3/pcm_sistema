@@ -21,7 +21,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# ==================== CONFIGURAÇÃO DE CONEXÃO ====================
 
 def get_connection():
     """Criar conexão com banco MySQL"""
