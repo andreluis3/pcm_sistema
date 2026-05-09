@@ -33,12 +33,6 @@ class ThermaCoreMySQLClient:
             print(f"[API ERROR] {e}")
 
             return None
-        
-        if response.status_code == 200:
-            return response.json().get("id")
-        else:
-            print("Erro ao criar experimento:", response.text)
-            return None
 
     def update_experiment(self, exp_id: int, data: Dict):
         try:
@@ -70,88 +64,112 @@ class ThermaCoreMySQLClient:
             return False
 
     def get_experiment_by_id(self, exp_id: int) -> Optional[Dict]:
-        response = requests.get(f"{self.base_url}/experimentos/{exp_id}")
-        if response.status_code == 200:
+        try:
+            response = requests.get(f"{self.base_url}/experimentos/{exp_id}", timeout=10)
+            response.raise_for_status()
             return response.json()
-        return None
+        except requests.exceptions.RequestException as e:
+            print(f"[API GET ERROR] {e}")
+            return None
 
     def list_experiments(self) -> List[Dict]:
-        response = requests.get(f"{self.base_url}/experimentos")
-        if response.status_code == 200:
+        try:
+            response = requests.get(f"{self.base_url}/experimentos", timeout=10)
+            response.raise_for_status()
             return response.json()
-        else:
-            print("Erro ao listar:", response.text)
+        except requests.exceptions.RequestException as e:
+            print(f"[API LIST ERROR] {e}")
             return []
 
     # ==================== MÉTRICAS ====================
 
     def get_metricas(self, exp_id: int) -> Optional[Dict]:
-        response = requests.get(f"{self.base_url}/experimentos/{exp_id}/metricas")
-        if response.status_code == 200:
+        try:
+            response = requests.get(f"{self.base_url}/experimentos/{exp_id}/metricas", timeout=10)
+            response.raise_for_status()
             return response.json()
-        return None
+        except requests.exceptions.RequestException as e:
+            print(f"[API METRICAS ERROR] {e}")
+            return None
 
     # ==================== CÁLCULOS ====================
 
     def insert_thermal_calculation(self, data: Dict) -> int:
-        response = requests.post(f"{self.base_url}/calculos-termicos", json=data)
-        if response.status_code == 200:
+        try:
+            response = requests.post(f"{self.base_url}/calculos-termicos", json=data, timeout=10)
+            response.raise_for_status()
             return response.json().get("id")
-        else:
-            print("Erro ao criar cálculo:", response.text)
+        except requests.exceptions.RequestException as e:
+            print(f"[API CALC CREATE ERROR] {e}")
             return None
 
     def list_thermal_calculations(self) -> List[Dict]:
-        response = requests.get(f"{self.base_url}/calculos-termicos")
-        if response.status_code == 200:
+        try:
+            response = requests.get(f"{self.base_url}/calculos-termicos", timeout=10)
+            response.raise_for_status()
             return response.json()
-        return []
+        except requests.exceptions.RequestException as e:
+            print(f"[API CALC LIST ERROR] {e}")
+            return []
 
     def list_tabela_calculos(self) -> List[Dict]:
-        response = requests.get(f"{self.base_url}/tabela-calculos")
-        if response.status_code == 200:
+        try:
+            response = requests.get(f"{self.base_url}/tabela-calculos", timeout=10)
+            response.raise_for_status()
             return response.json()
-        else:
-            print("Erro ao listar:", response.text)
+        except requests.exceptions.RequestException as e:
+            print(f"[API TABELA LIST ERROR] {e}")
             return []
 
     def get_calculo_by_experimento(self, experimento_id: int) -> Optional[Dict]:
-        response = requests.get(f"{self.base_url}/tabela-calculos/experimento/{experimento_id}")
-        if response.status_code == 200:
+        try:
+            response = requests.get(
+                f"{self.base_url}/tabela-calculos/experimento/{experimento_id}",
+                timeout=10,
+            )
+            response.raise_for_status()
             return response.json()
-        return None
+        except requests.exceptions.RequestException as e:
+            print(f"[API TABELA GET ERROR] {e}")
+            return None
 
     def get_calculo_by_experimento_tipo(self, experimento_id: int, tipo_calculo: str) -> Optional[Dict]:
-        response = requests.get(
-            f"{self.base_url}/tabela-calculos/experimento/{experimento_id}/tipo/{tipo_calculo}"
-        )
-        if response.status_code == 200:
+        try:
+            response = requests.get(
+                f"{self.base_url}/tabela-calculos/experimento/{experimento_id}/tipo/{tipo_calculo}",
+                timeout=10,
+            )
+            response.raise_for_status()
             return response.json()
-        return None
+        except requests.exceptions.RequestException as e:
+            print(f"[API TABELA GET TIPO ERROR] {e}")
+            return None
     
     def search_experiments(self, material: str) -> List[Dict]:
-        response = requests.get(
-            f"{self.base_url}/experimentos/buscar/por-material",
-            params={"material": material}
-        )
-
-        if response.status_code == 200:
+        try:
+            response = requests.get(
+                f"{self.base_url}/experimentos/buscar/por-material",
+                params={"material": material},
+                timeout=10,
+            )
+            response.raise_for_status()
             return response.json()
-
-        print("Erro na busca:", response.text)
-        return []
+        except requests.exceptions.RequestException as e:
+            print(f"[API SEARCH ERROR] {e}")
+            return []
 
     def search_experiments_flexible(self, texto: str) -> List[Dict]:
-        response = requests.get(
-            f"{self.base_url}/experimentos/buscar/texto-livre",
-            params={"q": texto}
-        )
-
-        if response.status_code == 200:
+        try:
+            response = requests.get(
+                f"{self.base_url}/experimentos/buscar/texto-livre",
+                params={"q": texto},
+                timeout=10,
+            )
+            response.raise_for_status()
             return response.json()
-
-        print("Erro na busca flexível:", response.text)
-        return []
+        except requests.exceptions.RequestException as e:
+            print(f"[API SEARCH FLEX ERROR] {e}")
+            return []
     
     # =========================
     # DASHBOARD HELPERS

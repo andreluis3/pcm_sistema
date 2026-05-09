@@ -3,7 +3,7 @@ API FastAPI para ThermaCore - Banco de Dados MySQL
 Endpoints para substituir operações SQLite
 
 Executar com:
-    uvicorn main_api:app --reload --host 0.0.0.0 --port 8000
+    uvicorn main_api_completo:app --reload --host 0.0.0.0 --port 8000
 
 Teste em: http://localhost:8000/docs
 """
@@ -46,8 +46,10 @@ def get_db():
 
 class ExperimentoBase(BaseModel):
     """Base para Experimento"""
-    material: str
-    operador: str
+    # OBS: No MySQL estes campos podem estar NULL dependendo de seeds/migração.
+    # Se forem obrigatórios, o FastAPI pode gerar 500 (ResponseValidationError) ao listar.
+    material: Optional[str] = None
+    operador: Optional[str] = None
     capsula: Optional[str] = None
     massa: Optional[float] = None
     tempo_inicio: Optional[str] = None
@@ -86,9 +88,9 @@ class ExperimentoResponse(ExperimentoBase):
 
 class CalculoTermicoBase(BaseModel):
     """Base para cálculo térmico"""
-    temperatura_inicial: float
-    temperatura_final: float
-    delta_temperatura: float
+    temperatura_inicial: Optional[float] = None
+    temperatura_final: Optional[float] = None
+    delta_temperatura: Optional[float] = None
     calor_latente: Optional[float] = None
     calor_sensivel: Optional[float] = None
     energia_armazenada: Optional[float] = None
@@ -125,10 +127,10 @@ class TabelaCalculosBase(BaseModel):
     """Base para tabela_calculos"""
     experimento_id: int
     tipo_calculo: str
-    massa: float
-    calor_especifico: float
-    delta_t: float
-    resultado: float
+    massa: Optional[float] = None
+    calor_especifico: Optional[float] = None
+    delta_t: Optional[float] = None
+    resultado: Optional[float] = None
 
 
 class TabelaCalculosResponse(TabelaCalculosBase):
@@ -143,6 +145,26 @@ class MetricasResponse(BaseModel):
     delta_temperatura: Optional[float] = None
     heating_rate: Optional[float] = None
     energia_armazenada: Optional[float] = None
+
+
+def _stringify_datetime_fields(row: dict, *field_names: str) -> dict:
+    """
+    Normaliza campos datetime/date/time para string.
+
+    Motivo: response_model usa `str` para `date_created`/`data_calculo`,
+    mas mysql.connector pode retornar `datetime` (e colunas podem ser NULL).
+    """
+    for name in field_names:
+        if name not in row:
+            continue
+        value = row.get(name)
+        if value is None:
+            continue
+        if isinstance(value, datetime):
+            row[name] = value.isoformat(sep=" ", timespec="seconds")
+        else:
+            row[name] = str(value)
+    return row
 
 
 # ==================== ENDPOINTS: EXPERIMENTOS ====================
@@ -211,10 +233,8 @@ def listar_experimentos(
             
             cursor.execute(query, params)
             results = cursor.fetchall()
-            # Convert date_created to string
             for row in results:
-                if 'date_created' in row and row['date_created']:
-                    row['date_created'] = str(row['date_created'])
+                _stringify_datetime_fields(row, "date_created")
             return results
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao listar: {str(e)}")
@@ -233,7 +253,8 @@ def obter_experimento(experimento_id: int):
             
             if not exp:
                 raise HTTPException(status_code=404, detail="Experimento não encontrado")
-            
+
+            _stringify_datetime_fields(exp, "date_created")
             return exp
     except HTTPException:
         raise
@@ -314,7 +335,10 @@ def buscar_por_material(material: str = Query(..., description="Nome do material
                 "SELECT * FROM experiments WHERE material LIKE %s ORDER BY date_created DESC",
                 (f"%{material}%",)
             )
-            return cursor.fetchall()
+            results = cursor.fetchall()
+            for row in results:
+                _stringify_datetime_fields(row, "date_created")
+            return results
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
 
@@ -402,7 +426,10 @@ def buscar_por_data(data: str = Query(..., description="Data no formato YYYY-MM-
                 "SELECT * FROM experiments WHERE DATE(date_created) = %s ORDER BY date_created DESC",
                 (data,)
             )
-            return cursor.fetchall()
+            results = cursor.fetchall()
+            for row in results:
+                _stringify_datetime_fields(row, "date_created")
+            return results
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
 
@@ -427,7 +454,10 @@ def buscar_texto_livre(q: str = Query(..., description="Termo para busca")):
             ORDER BY date_created DESC
             """
             cursor.execute(query, (like, like, like, like))
-            return cursor.fetchall()
+            results = cursor.fetchall()
+            for row in results:
+                _stringify_datetime_fields(row, "date_created")
+            return results
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
 
@@ -486,7 +516,10 @@ def listar_calculos_termicos(limit: Optional[int] = Query(None)):
                 params.append(limit)
             
             cursor.execute(query, params)
-            return cursor.fetchall()
+            results = cursor.fetchall()
+            for row in results:
+                _stringify_datetime_fields(row, "data_calculo")
+            return results
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
 
@@ -504,7 +537,8 @@ def obter_calculo_termico(calculo_id: int):
             
             if not calculo:
                 raise HTTPException(status_code=404, detail="Cálculo não encontrado")
-            
+
+            _stringify_datetime_fields(calculo, "data_calculo")
             return calculo
     except HTTPException:
         raise
@@ -559,7 +593,10 @@ def listar_calculos_por_experimento(experimento_id: int):
                 "SELECT * FROM calculos_termicos WHERE id_experimento = %s ORDER BY data_calculo DESC",
                 (experimento_id,)
             )
-            return cursor.fetchall()
+            results = cursor.fetchall()
+            for row in results:
+                _stringify_datetime_fields(row, "data_calculo")
+            return results
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
 

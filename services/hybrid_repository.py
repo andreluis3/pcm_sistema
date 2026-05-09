@@ -12,6 +12,13 @@ class HybridRepository:
     def api_online(self):
         return self.api.health_check()
 
+    def _safe_api_call(self, fn, *args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            print(f"[ERRO API] {e}")
+            return None
+
     def insert_experiment(self, data):
         print("USANDO HYBRID REPOSITORY")
         # tenta API primeiro
@@ -162,20 +169,30 @@ class HybridRepository:
         return dict(row) if row else None
 
     def get_calculo_by_experimento_tipo(self, experimento_id, tipo_calculo):
+        """
+        Necessário para Dashboard e ControllerCalculos.
 
+        - Online: tenta API (/api/tabela-calculos/.../tipo/...)
+        - Offline/falha: usa SQLite (DatabaseManager.get_calculo_by_experimento_tipo)
+        """
         if self.api_online():
+            result = self._safe_api_call(self.api.get_calculo_by_experimento_tipo, experimento_id, tipo_calculo)
+            if result is not None:
+                return result
 
-            try:
-
-                return self.api.get_calculo_by_experimento_tipo(experimento_id, tipo_calculo)
-
-            except Exception as e:
-
-                print(f"[ERRO API] {e}")
-
-        row = self.sqlite.get_calculo_by_experimento_tipo(experimento_id, tipo_calculo)
+        row = self.sqlite.get_calculo_by_experimento_tipo(int(experimento_id), str(tipo_calculo))
         return dict(row) if row else None
 
+    def upsert_tabela_calculos(self, data):
+        """
+        Necessário para ControllerCalculos.save_thermal_calculation().
+
+        Observação: a API atual não possui endpoint de upsert/insert da tabela_calculos,
+        então mantemos este fluxo no SQLite como cache/fallback por enquanto.
+        """
+        return self.sqlite.upsert_tabela_calculos(data)
+
+  
     # =========================
     # DASHBOARD HELPERS
     # =========================
@@ -250,3 +267,33 @@ class HybridRepository:
                 print(f"[ERRO API] {e}")
 
         return self.sqlite.get_energia_armazenada(experimento_id)
+   
+
+    # =========================
+    # DASHBOARD
+    # =========================
+
+    def get_metricas(self, exp_id):
+
+        if self.api_online():
+
+            try:
+                return self.api.get_metricas(exp_id)
+            except Exception as e:
+                print(f"[API METRICAS ERROR] {e}")
+
+        return {
+            "temperatura_media":
+                self.sqlite.get_temperatura_media(exp_id),
+
+            "delta_temperatura":
+                self.sqlite.get_delta_t(exp_id),
+
+            "heating_rate":
+                self.sqlite.get_heating_rate(exp_id),
+
+            "energia_armazenada":
+                self.sqlite.get_energia_armazenada(exp_id)
+        }
+        
+        
