@@ -153,7 +153,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
 
         self.experiment_combo = ttk.Combobox(panel, state="readonly", values=["Carregando..."])
         self.experiment_combo.grid(row=2, column=0, columnspan=2, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
-        self.experiment_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_experiment_selected())
+        self.experiment_combo.bind("<<ComboboxSelected>>", self._on_experiment_combo_selected)
 
         calc_label = ctk.CTkLabel(panel, text="Tipo de cálculo", text_color=THEME_COLORS["text_secondary"], font=FONT_LABEL)
         calc_label.grid(row=1, column=2, sticky="w", padx=PAD_LARGE, pady=(0, PAD_SMALL))
@@ -161,9 +161,15 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self.calc_type = ctk.StringVar(value="Energia Absorvida")
         self.calc_combo = ttk.Combobox(panel, state="readonly", values=list(CALCULATION_DEFS.keys()), textvariable=self.calc_type)
         self.calc_combo.grid(row=2, column=2, columnspan=2, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
-        self.calc_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_calc_selected())
+        self.calc_combo.bind("<<ComboboxSelected>>", self._on_calc_combo_selected)
         if self.calc_combo["values"]:
             self.calc_combo.current(0)
+
+    def _on_experiment_combo_selected(self, _event=None) -> None:
+        self._on_experiment_selected()
+
+    def _on_calc_combo_selected(self, _event=None) -> None:
+        self._on_calc_selected()
 
     def _build_explanation_panel(self, parent) -> None:
         panel = ctk.CTkFrame(parent, **card_style())

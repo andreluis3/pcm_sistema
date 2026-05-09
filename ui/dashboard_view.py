@@ -51,6 +51,7 @@ class DashboardPage(ctk.CTkFrame):
         self.grid_rowconfigure(2, weight=1)
 
         self._ui_queue: Queue[tuple[Callable, tuple, dict]] = Queue()
+        self._ui_queue_after_id = None
 
         self._build_layout()
         self._start_ui_queue()
@@ -179,15 +180,34 @@ class DashboardPage(ctk.CTkFrame):
             self._ui_queue.put((func, args, kwargs))
 
     def _start_ui_queue(self) -> None:
-        self.after(50, self._process_ui_queue)
+        if self._ui_queue_after_id is not None:
+            return
+        self._ui_queue_after_id = self.after(50, self._process_ui_queue)
 
     def _process_ui_queue(self) -> None:
-        if not self.winfo_exists():
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
             return
         while not self._ui_queue.empty():
             func, args, kwargs = self._ui_queue.get_nowait()
             func(*args, **kwargs)
-        self.after(50, self._process_ui_queue)
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
+        self._ui_queue_after_id = self.after(50, self._process_ui_queue)
+
+    def destroy(self) -> None:
+        if self._ui_queue_after_id is not None:
+            try:
+                self.after_cancel(self._ui_queue_after_id)
+            except Exception:
+                pass
+            self._ui_queue_after_id = None
+        super().destroy()
 
     # --- Helpers -----------------------------------------------------------
     def _resolve_phase(self, temperature: float) -> tuple[str, str]:

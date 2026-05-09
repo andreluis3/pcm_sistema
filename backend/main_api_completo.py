@@ -210,7 +210,12 @@ def listar_experimentos(
                 params.append(limit)
             
             cursor.execute(query, params)
-            return cursor.fetchall()
+            results = cursor.fetchall()
+            # Convert date_created to string
+            for row in results:
+                if 'date_created' in row and row['date_created']:
+                    row['date_created'] = str(row['date_created'])
+            return results
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao listar: {str(e)}")
 
@@ -310,6 +315,75 @@ def buscar_por_material(material: str = Query(..., description="Nome do material
                 (f"%{material}%",)
             )
             return cursor.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
+
+
+# ==================== ENDPOINTS: TABELA CALCULOS ====================
+
+@app.get("/api/tabela-calculos", response_model=List[TabelaCalculosResponse], tags=["Calculos"])
+def listar_tabela_calculos():
+    """
+    ✅ Listar todos os cálculos da tabela_calculos
+    """
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM tabela_calculos ORDER BY data_calculo DESC")
+            results = cursor.fetchall()
+            # Convert data_calculo to string
+            for row in results:
+                if 'data_calculo' in row and row['data_calculo']:
+                    row['data_calculo'] = str(row['data_calculo'])
+            return results
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao listar: {str(e)}")
+
+
+@app.get("/api/tabela-calculos/experimento/{experimento_id}", response_model=TabelaCalculosResponse, tags=["Calculos"])
+def obter_calculo_by_experimento(experimento_id: int):
+    """
+    ✅ Obter cálculo mais recente por experimento
+    """
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT * FROM tabela_calculos WHERE experimento_id = %s ORDER BY data_calculo DESC LIMIT 1",
+                (experimento_id,)
+            )
+            result = cursor.fetchone()
+            if not result:
+                raise HTTPException(status_code=404, detail="Cálculo não encontrado")
+            if 'data_calculo' in result and result['data_calculo']:
+                result['data_calculo'] = str(result['data_calculo'])
+            return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
+
+
+@app.get("/api/tabela-calculos/experimento/{experimento_id}/tipo/{tipo_calculo}", response_model=TabelaCalculosResponse, tags=["Calculos"])
+def obter_calculo_by_experimento_tipo(experimento_id: int, tipo_calculo: str):
+    """
+    ✅ Obter cálculo por experimento e tipo
+    """
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT * FROM tabela_calculos WHERE experimento_id = %s AND tipo_calculo = %s ORDER BY data_calculo DESC LIMIT 1",
+                (experimento_id, tipo_calculo)
+            )
+            result = cursor.fetchone()
+            if not result:
+                raise HTTPException(status_code=404, detail="Cálculo não encontrado")
+            if 'data_calculo' in result and result['data_calculo']:
+                result['data_calculo'] = str(result['data_calculo'])
+            return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
 

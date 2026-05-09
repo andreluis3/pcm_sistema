@@ -5,7 +5,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import Canvas, ttk
 
-from database.database_manager import DatabaseManager
+from services.hybrid_repository import HybridRepository
 from ui_styles import (
     FONT_HEADER,
     FONT_NORMAL,
@@ -24,12 +24,12 @@ from ui_styles import (
 
 
 class DashboardTab(ctk.CTkFrame):
-    def __init__(self, parent, db_manager: DatabaseManager | None = None) -> None:
+    def __init__(self, parent, db_manager: HybridRepository | None = None) -> None:
         super().__init__(parent, fg_color=THEME_COLORS["bg"])
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
-        self.db = db_manager or DatabaseManager()
+        self.db = db_manager or HybridRepository()
         self._experiments: list[dict] = []
         self._experiment_map: dict[str, dict] = {}
         self._selected_experiment: dict | None = None
@@ -40,6 +40,7 @@ class DashboardTab(ctk.CTkFrame):
         self._mqtt_status_var = ctk.StringVar(value="MQTT: Desconectado")
         self._current_experiment_var = ctk.StringVar(value="Experimento: --")
         self._canvas_temp_var = ctk.StringVar(value="-- °C")
+        self._animate_id = None  # CORREÇÃO: Armazenar ID da animação PCM
 
         self._bg = Canvas(self, bg=THEME_COLORS["bg"], highlightthickness=0)
         self._bg.place(relwidth=1, relheight=1)
@@ -401,7 +402,7 @@ class DashboardTab(ctk.CTkFrame):
 
         self._experiment_combo = ttk.Combobox(header, state="readonly", values=[])
         self._experiment_combo.grid(row=0, column=1, sticky="e")
-        self._experiment_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_experiment_selected())
+        self._experiment_combo.bind("<<ComboboxSelected>>", self._on_experiment_combo_selected)
 
         self._temp_fig, self._temp_ax, self._temp_canvas = self._create_chart(card)
 
@@ -643,13 +644,17 @@ class DashboardTab(ctk.CTkFrame):
         self._pcm_canvas.itemconfigure(self._pcm_temp_text, text=self._canvas_temp_var.get())
 
     def _animate_pcm(self) -> None:
+        # CORREÇÃO: Verificar se widget ainda existe antes de animar
+        if not self.winfo_exists():
+            return
+            
         if self._pcm_state == "liquid":
             self._anim_phase = (self._anim_phase + 1) % 360
             offset = 3 * (1 if self._anim_phase % 120 < 60 else -1)
             self._pcm_canvas.coords(self._pcm_inner, 82, 60 + offset, 198, 180 + offset)
         else:
             self._pcm_canvas.coords(self._pcm_inner, 80, 60, 200, 180)
-        self.after(120, self._animate_pcm)
+        self._animate_id = self.after(120, self._animate_pcm)
 
     def _compute_average_series(self) -> list[tuple[float, float]]:
         candidates = [exp for exp in self._experiments if exp.get("temperatura_inicial") is not None and exp.get("temperatura_final") is not None]
@@ -743,7 +748,19 @@ class DashboardTab(ctk.CTkFrame):
     def _on_experiment_selected(self) -> None:
         label = self._experiment_combo.get()
         self._selected_experiment = self._experiment_map.get(label)
-        self.update_dashboard()
+
+    def _on_experiment_combo_selected(self, _event=None) -> None:
+        self._on_experiment_selected()
+
+    def destroy(self) -> None:
+        # CORREÇÃO: Cancelar animação antes de destruir
+        if self._animate_id:
+            try:
+                self.after_cancel(self._animate_id)
+            except Exception:
+                pass
+            self._animate_id = None
+        super().destroy()
 
     # --- Visuals ----------------------------------------------------------
     def _draw_noise(self, _event=None) -> None:

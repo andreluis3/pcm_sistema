@@ -8,7 +8,7 @@ from .view.database_page import DatabasePage
 from .view.export_page import ExportPage
 from .view.thermal_calculations_page import ThermalCalculationsPage
 from pcm_module.pcm_screen import PCMCalcScreen
-
+from services.hybrid_repository import HybridRepository
 
 from database.database_manager import DatabaseManager
 from ui_styles import FONT_SMALL, PAD_LARGE, PAD_NORMAL, THEME_COLORS
@@ -32,11 +32,8 @@ class MainUI(ctk.CTk):
         # === Layout principal ===
         self._build_layout()
 
-   
-      
-        self.sensor_service.start(self)  # self = root, necessário para after()self.after(100, lambda: self.sensor_service.start(self))
         # === Banco de dados ===
-        self.db_manager = DatabaseManager()
+        self.db_manager = HybridRepository()
 
         # === Carrega o dashboard após login ===
         self.load_page("dashboard")
@@ -164,7 +161,9 @@ class MainUI(ctk.CTk):
     def logout(self) -> None:
         clear_user()
         try:
-            self.sensor_service.stop()
+            # REMOVIDO: sensor_service não existe
+            # self.sensor_service.stop()
+            pass
         except Exception:
             pass
 

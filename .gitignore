@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/
+
+# Environment variables
+.env
+
+# SQLite databases (se quiser ignorar)
+*.db
+
+# Logs
+*.log

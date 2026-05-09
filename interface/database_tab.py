@@ -153,8 +153,11 @@ class DatabaseTab(ctk.CTkFrame):
         scrollbar.grid(row=0, column=1, sticky="ns", pady=PAD_NORMAL)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
-        self.tree.bind("<Double-1>", lambda _e: self.edit_selected_experiment())
+        self.tree.bind("<Double-1>", self._on_tree_double_click)
         self._current_view = "experimentos"
+
+    def _on_tree_double_click(self, _event=None) -> None:
+        self.edit_selected_experiment()
 
     def _setup_treeview_style(self) -> None:
         style = ttk.Style()
@@ -175,9 +178,9 @@ class DatabaseTab(ctk.CTkFrame):
         style.map("PCM.Treeview", background=[("selected", THEME_COLORS["card_soft"])])
 
     def load_experiments(self) -> None:
-        rows = self.db.list_experiments()
         if self._current_view != "experimentos":
             return
+        rows = self.db.list_experiments()
         self.refresh_treeview(rows)
 
     def load_calculations(self) -> None:

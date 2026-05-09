@@ -269,14 +269,14 @@ exp = self.db.obter_experimento(1)
 
 ## ✅ CHECKLIST
 
-- [ ] MySQL instalado e rodando
-- [ ] Banco "thermacore" criado
-- [ ] Tabelas criadas (SQL fornecido)
-- [ ] main_api_completo.py salvo
-- [ ] FastAPI instalado
-- [ ] API iniciada com sucesso
-- [ ] Teste em http://localhost:8000/docs
-- [ ] Endpoints retornam dados corretos
+- [ ok] MySQL instalado e rodando
+- [ ]ok Banco "thermacore" criado
+- [ ok] Tabelas criadas (SQL fornecido)
+- [ok ] main_api_completo.py salvo
+- [ ok] FastAPI instalado
+- [ ok] API iniciada com sucesso
+- [ ok] Teste em http://localhost:8000/docs
+- [ ok] Endpoints retornam dados corretos
 
 ---
 

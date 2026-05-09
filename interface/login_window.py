@@ -36,8 +36,11 @@ class LoginWindow(ctk.CTk):
         self._center_window(520, 360)
         self._build_ui()
 
-        self.bind("<Return>", lambda _e: self._handle_login())
-        self.password_entry.bind("<Return>", lambda _e: self._handle_login())
+        self.bind("<Return>", self._on_return)
+        self.password_entry.bind("<Return>", self._on_return)
+
+    def _on_return(self, _event=None) -> None:
+        self._handle_login()
 
     def _build_ui(self) -> None:
         title = ctk.CTkLabel(

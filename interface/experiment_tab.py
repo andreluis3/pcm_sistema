@@ -6,8 +6,8 @@ from typing import Any, Callable
 
 import customtkinter as ctk
 from tkinter import messagebox
+from services.api_client import ThermaCoreMySQLClient
 
-from database.database_manager import DatabaseManager
 from ui_styles import (
     FONT_HEADER,
     FONT_NORMAL,
@@ -56,12 +56,12 @@ class ExperimentTab(ctk.CTkFrame):
     def __init__(
         self,
         parent,
-        db_manager: DatabaseManager,
+        db_manager: ThermaCoreMySQLClient | None = None,
         on_saved: Callable[[], None] | None = None,
     ) -> None:
         # UI REFATORADA: formulário com cards e botões padronizados
         super().__init__(parent, fg_color=THEME_COLORS["bg"])
-        self.db = db_manager
+        self.db = db_manager or ThermaCoreMySQLClient()
         self.on_saved = on_saved
 
         self._editing_id: int | None = None
@@ -130,9 +130,12 @@ class ExperimentTab(ctk.CTkFrame):
         if disabled:
             entry.configure(state="disabled")
         else:
-            entry.bind("<KeyRelease>", lambda _e: self._recompute_deltas())
+            entry.bind("<KeyRelease>", self._on_entry_keyrelease)
         self._entries[key] = entry
         return row + 1
+
+    def _on_entry_keyrelease(self, _event=None) -> None:
+        self._recompute_deltas()
 
     def _get_str(self, key: str) -> str | None:
         value = self._entries[key].get().strip()
@@ -193,6 +196,7 @@ class ExperimentTab(ctk.CTkFrame):
         self._recompute_deltas()
         try:
             data = self.get_form_data().as_db_dict()
+            data["id_usuario"] = 1
         except ValueError as e:
             messagebox.showerror("Dados inválidos", str(e), parent=self.winfo_toplevel())
             return
@@ -245,6 +249,10 @@ class ExperimentTab(ctk.CTkFrame):
         return datetime.strptime(value, DATE_FORMAT)
 
     def _recompute_deltas(self) -> None:
+        # CORREÇÃO: Verificar se widget ainda existe antes de processar
+        if not self.winfo_exists():
+            return
+            
         tempo_inicio = self._get_str("tempo_inicio")
         tempo_final = self._get_str("tempo_final")
         temperatura_inicial = self._get_str("temperatura_inicial")

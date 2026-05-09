@@ -19,9 +19,10 @@ class DashboardPage(ctk.CTkFrame):
         self._temperatura = 42.3
         self._tempo = 120
         self._serie: Deque[float] = deque(maxlen=80)
+        self._update_after_id = None
 
         self._build_layout()
-        self.after(1000, self._update_loop)
+        self._update_after_id = self.after(1000, self._update_loop)
 
     def _build_layout(self) -> None:
         header = ctk.CTkFrame(self, fg_color="transparent")
@@ -79,6 +80,11 @@ class DashboardPage(ctk.CTkFrame):
         self.grafico.widget.grid(row=0, column=0, sticky="nsew", padx=PAD_NORMAL, pady=PAD_NORMAL)
 
     def _update_loop(self) -> None:
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self._temperatura += random.uniform(-0.6, 0.8)
         self._temperatura = max(20.0, min(60.0, self._temperatura))
         self._tempo += 1
@@ -90,4 +96,13 @@ class DashboardPage(ctk.CTkFrame):
         self.grafico.push(self._temperatura)
         self.grafico.draw()
 
-        self.after(1000, self._update_loop)
+        self._update_after_id = self.after(1000, self._update_loop)
+
+    def destroy(self) -> None:
+        if self._update_after_id is not None:
+            try:
+                self.after_cancel(self._update_after_id)
+            except Exception:
+                pass
+            self._update_after_id = None
+        super().destroy()
