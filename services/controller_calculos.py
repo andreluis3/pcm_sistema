@@ -30,8 +30,11 @@ class ControllerCalculos:
         return [dict(r) for r in self._db.list_experiments()]
 
     def get_calculo_by_experimento_tipo(self, experimento_id: int, tipo_calculo: str) -> dict[str, Any] | None:
+        # Preferência: repositório híbrido pode implementar este método com API/MySQL.
         row = self._db.get_calculo_by_experimento_tipo(experimento_id, tipo_calculo)
-        return dict(row) if row is not None else None
+        if row is None:
+            return None
+        return dict(row) if not isinstance(row, dict) else row
 
     def get_prefill_values(self, experiment: Mapping[str, Any] | None, calc_type: str) -> dict[str, float]:
         if not experiment or experiment.get("id") is None:
@@ -56,15 +59,20 @@ class ControllerCalculos:
         inputs: Mapping[str, float | None],
         resultado: float,
     ) -> int:
+        """
+        Persistência unificada:
+        - Preferência: API/MySQL (`calculos_termicos`)
+        - Fallback: SQLite (`thermal_calculations`)
+
+        Mantém assinatura usada pela UI, mas não usa mais `tabela_calculos`.
+        """
         payload = {
             "experimento_id": int(experimento_id),
-            "massa": inputs.get("m"),
-            "calor_especifico": float(energy_model.CONSTANT_C_J_G_C),
+            "tipo_calculo": str(tipo_calculo),
             "delta_t": inputs.get("delta_t"),
             "resultado": float(resultado),
-            "tipo_calculo": tipo_calculo,
         }
-        return int(self._db.upsert_tabela_calculos(payload))
+        return int(self._db.insert_thermal_calculation(payload))
 
     # --- Física (UI -> controller -> core) -------------------------------
     def calculate_thermal(self, calc_type: str, values: Mapping[str, float]) -> float:

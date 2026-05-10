@@ -36,11 +36,12 @@ EXPERIMENT_COLUMNS: tuple[str, ...] = (
 
 THERMAL_COLUMNS: tuple[str, ...] = (
     "id",
-    "experimento_id",
-    "tipo_calculo",
-    "massa",
-    "delta_t",
-    "resultado",
+    "id_experimento",
+    "calculation_type",
+    "delta_temperatura",
+    "calor_sensivel",
+    "calor_latente",
+    "energia_armazenada",
     "data_calculo",
 )
 
@@ -184,7 +185,7 @@ class DatabaseTab(ctk.CTkFrame):
         self.refresh_treeview(rows)
 
     def load_calculations(self) -> None:
-        rows = self.db.list_tabela_calculos()
+        rows = self.db.list_thermal_calculations()
         if self._current_view == "experimentos":
             return
         self.refresh_treeview(rows)
@@ -211,12 +212,13 @@ class DatabaseTab(ctk.CTkFrame):
             for r in rows:
                 values = (
                     r["id"],
-                    r["experimento_id"],
-                    r["tipo_calculo"],
-                    r["massa"],
-                    r["delta_t"],
-                    r["resultado"],
-                    r["data_calculo"],
+                    r["id_experimento"],
+                    r.get("calculation_type"),
+                    r.get("delta_temperatura"),
+                    r.get("calor_sensivel"),
+                    r.get("calor_latente"),
+                    r.get("energia_armazenada"),
+                    r.get("data_calculo"),
                 )
                 self.tree.insert("", "end", values=values)
 
@@ -247,27 +249,70 @@ class DatabaseTab(ctk.CTkFrame):
         self._search_after_id = self.after(200, self.search_experiment)
 
     def delete_selected_experiment(self) -> None:
-        if self._current_view != "experimentos":
-            return
-        experiment_id = self._get_selected_id()
-        if experiment_id is None:
-            messagebox.showwarning("Seleção", "Selecione um experimento para deletar.", parent=self.winfo_toplevel())
+
+        selected_id = self._get_selected_id()
+
+        if selected_id is None:
+            messagebox.showwarning(
+                "Seleção",
+                "Selecione um registro para deletar.",
+                parent=self.winfo_toplevel()
+            )
             return
 
-        if not messagebox.askyesno(
-            "Confirmar",
-            f"Deletar experimento ID {experiment_id}?",
-            parent=self.winfo_toplevel(),
-        ):
+        # =========================
+        # DELETAR EXPERIMENTO
+        # =========================
+        if self._current_view == "experimentos":
+
+            if not messagebox.askyesno(
+                "Confirmar",
+                f"Deletar experimento ID {selected_id}?",
+                parent=self.winfo_toplevel(),
+            ):
+                return
+
+            try:
+                self.db.delete_experiment(selected_id)
+
+            except Exception as e:
+                messagebox.showerror(
+                    "Erro",
+                    f"Falha ao deletar experimento:\n{e}",
+                    parent=self.winfo_toplevel()
+                )
+                return
+
+            self.load_experiments()
             return
 
-        try:
-            self.db.delete_experiment(experiment_id)
-        except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Erro", f"Falha ao deletar: {e}", parent=self.winfo_toplevel())
-            return
+        # =========================
+        # DELETAR CÁLCULO TÉRMICO
+        # =========================
+        if self._current_view == "calculos":
 
-        self.load_experiments()
+            if not messagebox.askyesno(
+                "Confirmar",
+                f"Deletar cálculo térmico ID {selected_id}?",
+                parent=self.winfo_toplevel(),
+            ):
+                return
+
+            try:
+                self.db.delete_thermal_calculation(selected_id)
+
+            except Exception as e:
+                messagebox.showerror(
+                    "Erro",
+                    f"Falha ao deletar cálculo:\n{e}",
+                    parent=self.winfo_toplevel()
+                )
+                return
+
+            # refresh tabela
+            self.load_thermal_calculations()
+
+            return
 
     def edit_selected_experiment(self) -> None:
         if self._current_view != "experimentos":
@@ -299,12 +344,18 @@ class DatabaseTab(ctk.CTkFrame):
             self.load_experiments()
 
     def _set_experiment_controls_enabled(self, enabled: bool) -> None:
+
         state = "normal" if enabled else "disabled"
+
         self.search_entry.configure(state=state)
         self.btn_clear.configure(state=state)
-        self.btn_edit.configure(state=state)
-        self.btn_delete.configure(state=state)
 
+        # editar só em experimentos
+        self.btn_edit.configure(state=state)
+
+        # delete sempre habilitado
+        self.btn_delete.configure(state="normal")
+    
     def refresh_current_view(self) -> None:
         if self._current_view == "experimentos":
             self.clear_search()
@@ -327,11 +378,12 @@ class DatabaseTab(ctk.CTkFrame):
             "temperatura_final": "T final (°C)",
             "delta_temperatura": "Δ T (°C)",
             "operador": "Operador",
-            "experimento_id": "Experimento",
-            "tipo_calculo": "Tipo",
-            "massa": "Massa (g)",
-            "delta_t": "ΔT (°C)",
-            "resultado": "Resultado",
+            "id_experimento": "Experimento",
+            "calculation_type": "Tipo",
+            "delta_temperatura": "ΔT (°C)",
+            "calor_sensivel": "Calor sensível (J)",
+            "calor_latente": "Calor latente (J)",
+            "energia_armazenada": "Energia (J)",
             "data_calculo": "Data",
         }
         for col in columns:

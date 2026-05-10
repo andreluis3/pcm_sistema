@@ -3,7 +3,7 @@ from __future__ import annotations
 import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from tkinter import Canvas, ttk
+from tkinter import Canvas, TclError, ttk
 
 from services.hybrid_repository import HybridRepository
 from ui_styles import (
@@ -51,10 +51,36 @@ class DashboardTab(ctk.CTkFrame):
 
     # --- Data -------------------------------------------------------------
     def load_dashboard_data(self) -> None:
+        if not self.winfo_exists():
+            return
         self._experiments = [dict(r) for r in self.db.list_experiments()]
         self._refresh_experiment_selector()
         self.update_dashboard()
         self._refresh_statistics()
+        
+    def _refresh_experiment_selector(self):
+
+        if not self.winfo_exists():
+            return
+
+        if not hasattr(self, "_experiment_combo"):
+            return
+
+        if not self._experiment_combo.winfo_exists():
+            return
+
+        try:
+            experiments = self.db.list_experiments()
+
+            options = [
+                f"#{exp['id']} - {exp.get('material', 'Sem nome')}"
+                for exp in experiments
+            ]
+
+            self._experiment_combo.configure(values=options)
+
+        except Exception as e:
+            print(f"Erro ao atualizar combobox: {e}")
 
     def update_dashboard(self) -> None:
         exp = self._selected_experiment
@@ -729,6 +755,17 @@ class DashboardTab(ctk.CTkFrame):
 
     # --- Experimentos -----------------------------------------------------
     def _refresh_experiment_selector(self) -> None:
+        if not self.winfo_exists():
+            return
+        combo = getattr(self, "_experiment_combo", None)
+        if combo is None:
+            return
+        try:
+            if hasattr(combo, "winfo_exists") and not combo.winfo_exists():
+                return
+        except Exception:
+            return
+
         options = []
         self._experiment_map.clear()
 
@@ -741,9 +778,13 @@ class DashboardTab(ctk.CTkFrame):
             options = ["Nenhum experimento"]
             self._experiment_map[options[0]] = None
 
-        self._experiment_combo["values"] = options
-        self._experiment_combo.current(0)
-        self._selected_experiment = self._experiment_map.get(options[0])
+        try:
+            self._experiment_combo["values"] = options
+            self._experiment_combo.current(0)
+            self._selected_experiment = self._experiment_map.get(options[0])
+        except TclError:
+            # Widget destruído (troca de tela / fechamento) enquanto atualizava.
+            return
 
     def _on_experiment_selected(self) -> None:
         label = self._experiment_combo.get()

@@ -103,6 +103,7 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         self._entries: dict[str, ctk.CTkEntry] = {}
         self._last_result: float | None = None
         self._last_calc_type: str | None = None
+        self._dashboard_refresh_scheduled = False
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -571,8 +572,27 @@ class ThermalCalculationsPanel(ctk.CTkFrame):
         messagebox.showinfo("Salvo", f"Cálculo salvo com sucesso (ID {calc_id}).", parent=self.winfo_toplevel())
 
     def update_dashboard_metrics(self) -> None:
-        if self._on_calculation_saved is not None:
-            self._on_calculation_saved()
+        if self._on_calculation_saved is None:
+            return
+        if not self.winfo_exists():
+            return
+        if self._dashboard_refresh_scheduled:
+            return
+
+        self._dashboard_refresh_scheduled = True
+
+        def _fire() -> None:
+            self._dashboard_refresh_scheduled = False
+            if not self.winfo_exists():
+                return
+            if self._on_calculation_saved is not None:
+                self._on_calculation_saved()
+
+        # Evita refresh em cascata no meio do fluxo de UI.
+        try:
+            self.after_idle(_fire)
+        except Exception:
+            self._dashboard_refresh_scheduled = False
 
     def _try_get_value(self, key: str) -> float | None:
         if key not in self._entries:

@@ -1,9 +1,31 @@
 import requests
+import os
+import traceback
 from typing import List, Dict, Optional
 
 class ThermaCoreMySQLClient:
     def __init__(self, base_url="http://127.0.0.1:8000/api"):
         self.base_url = base_url
+        self._debug = os.getenv("THERMACORE_API_DEBUG", "0") in {"1", "true", "True", "yes", "YES"}
+
+    def _log(self, message: str) -> None:
+        if self._debug:
+            print(message)
+
+    def _request_json(self, method: str, path: str, **kwargs) -> tuple[int | None, object | None]:
+        url = f"{self.base_url}{path}"
+        try:
+            self._log(f"[API] {method} {url} kwargs={{{', '.join(sorted(kwargs.keys()))}}}")
+            resp = requests.request(method, url, **kwargs)
+            self._log(f"[API] -> {resp.status_code} ({len(resp.content or b'')} bytes)")
+            resp.raise_for_status()
+            if not resp.content:
+                return resp.status_code, None
+            return resp.status_code, resp.json()
+        except Exception as e:  # noqa: BLE001
+            self._log(f"[API] !! {type(e).__name__}: {e}")
+            self._log(traceback.format_exc().rstrip())
+            return None, None
 
     def health_check(self) -> bool:
         """Check if API is available"""
@@ -16,160 +38,115 @@ class ThermaCoreMySQLClient:
     # ==================== EXPERIMENTOS ====================
 
     def insert_experiment(self, data: Dict) -> int:
-        try:
-
-            response = requests.post(
-                f"{self.base_url}/experimentos",
-                json=data,
-                timeout=10
-            )
-
-            response.raise_for_status()
-
-            return response.json().get("id")
-
-        except requests.exceptions.RequestException as e:
-
-            print(f"[API ERROR] {e}")
-
+        status, payload = self._request_json("POST", "/experimentos", json=data, timeout=10)
+        if status is None or not isinstance(payload, dict):
             return None
+        return payload.get("id")
 
     def update_experiment(self, exp_id: int, data: Dict):
-        try:
-            response = requests.put(
-                f"{self.base_url}/experimentos/{exp_id}",
-                json=data,
-                timeout=10
-            )
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            print(f"[API UPDATE ERROR] {e}")
+        self._request_json("PUT", f"/experimentos/{exp_id}", json=data, timeout=10)
 
     def delete_experiment(self, exp_id: int):
-        try:
-
-            response = requests.delete(
-                f"{self.base_url}/experimentos/{exp_id}",
-                timeout=10
-            )
-
-            response.raise_for_status()
-
-            return True
-
-        except requests.exceptions.RequestException as e:
-
-            print(f"[API DELETE ERROR] {e}")
-
-            return False
+        status, _payload = self._request_json("DELETE", f"/experimentos/{exp_id}", timeout=10)
+        return bool(status)
 
     def get_experiment_by_id(self, exp_id: int) -> Optional[Dict]:
-        try:
-            response = requests.get(f"{self.base_url}/experimentos/{exp_id}", timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API GET ERROR] {e}")
+        status, payload = self._request_json("GET", f"/experimentos/{exp_id}", timeout=10)
+        if status is None or not isinstance(payload, dict):
             return None
+        return payload
 
     def list_experiments(self) -> List[Dict]:
-        try:
-            response = requests.get(f"{self.base_url}/experimentos", timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API LIST ERROR] {e}")
+        status, payload = self._request_json("GET", "/experimentos", timeout=10)
+        if status is None or not isinstance(payload, list):
             return []
+        return payload
 
     # ==================== MÉTRICAS ====================
 
     def get_metricas(self, exp_id: int) -> Optional[Dict]:
-        try:
-            response = requests.get(f"{self.base_url}/experimentos/{exp_id}/metricas", timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API METRICAS ERROR] {e}")
+        status, payload = self._request_json("GET", f"/experimentos/{exp_id}/metricas", timeout=10)
+        if status is None or not isinstance(payload, dict):
             return None
+        return payload
 
     # ==================== CÁLCULOS ====================
 
     def insert_thermal_calculation(self, data: Dict) -> int:
-        try:
-            response = requests.post(f"{self.base_url}/calculos-termicos", json=data, timeout=10)
-            response.raise_for_status()
-            return response.json().get("id")
-        except requests.exceptions.RequestException as e:
-            print(f"[API CALC CREATE ERROR] {e}")
+        status, payload = self._request_json("POST", "/calculos-termicos", json=data, timeout=10)
+        if status is None or not isinstance(payload, dict):
             return None
+        return payload.get("id")
 
     def list_thermal_calculations(self) -> List[Dict]:
-        try:
-            response = requests.get(f"{self.base_url}/calculos-termicos", timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API CALC LIST ERROR] {e}")
+        status, payload = self._request_json("GET", "/calculos-termicos", timeout=10)
+        if status is None or not isinstance(payload, list):
             return []
+        return payload
+
+    def list_thermal_calculations_by_experiment(self, experimento_id: int) -> List[Dict]:
+        status, payload = self._request_json(
+            "GET",
+            f"/calculos-termicos/experimento/{experimento_id}",
+            timeout=10,
+        )
+        if status is None or not isinstance(payload, list):
+            return []
+        return payload
+
+    def get_thermal_calculation_by_experiment_type(self, experimento_id: int, calculation_type: str) -> Optional[Dict]:
+        status, payload = self._request_json(
+            "GET",
+            f"/calculos-termicos/experimento/{experimento_id}/tipo/{calculation_type}",
+            timeout=10,
+        )
+        if status is None or not isinstance(payload, dict):
+            return None
+        return payload
 
     def list_tabela_calculos(self) -> List[Dict]:
-        try:
-            response = requests.get(f"{self.base_url}/tabela-calculos", timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API TABELA LIST ERROR] {e}")
+        status, payload = self._request_json("GET", "/tabela-calculos", timeout=10)
+        if status is None or not isinstance(payload, list):
             return []
+        return payload
 
     def get_calculo_by_experimento(self, experimento_id: int) -> Optional[Dict]:
-        try:
-            response = requests.get(
-                f"{self.base_url}/tabela-calculos/experimento/{experimento_id}",
-                timeout=10,
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API TABELA GET ERROR] {e}")
+        status, payload = self._request_json("GET", f"/tabela-calculos/experimento/{experimento_id}", timeout=10)
+        if status is None or not isinstance(payload, dict):
             return None
+        return payload
 
     def get_calculo_by_experimento_tipo(self, experimento_id: int, tipo_calculo: str) -> Optional[Dict]:
-        try:
-            response = requests.get(
-                f"{self.base_url}/tabela-calculos/experimento/{experimento_id}/tipo/{tipo_calculo}",
-                timeout=10,
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API TABELA GET TIPO ERROR] {e}")
+        status, payload = self._request_json(
+            "GET",
+            f"/tabela-calculos/experimento/{experimento_id}/tipo/{tipo_calculo}",
+            timeout=10,
+        )
+        if status is None or not isinstance(payload, dict):
             return None
+        return payload
     
     def search_experiments(self, material: str) -> List[Dict]:
-        try:
-            response = requests.get(
-                f"{self.base_url}/experimentos/buscar/por-material",
-                params={"material": material},
-                timeout=10,
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API SEARCH ERROR] {e}")
+        status, payload = self._request_json(
+            "GET",
+            "/experimentos/buscar/por-material",
+            params={"material": material},
+            timeout=10,
+        )
+        if status is None or not isinstance(payload, list):
             return []
+        return payload
 
     def search_experiments_flexible(self, texto: str) -> List[Dict]:
-        try:
-            response = requests.get(
-                f"{self.base_url}/experimentos/buscar/texto-livre",
-                params={"q": texto},
-                timeout=10,
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"[API SEARCH FLEX ERROR] {e}")
+        status, payload = self._request_json(
+            "GET",
+            "/experimentos/buscar/texto-livre",
+            params={"q": texto},
+            timeout=10,
+        )
+        if status is None or not isinstance(payload, list):
             return []
+        return payload
     
     # =========================
     # DASHBOARD HELPERS
@@ -224,3 +201,11 @@ class ThermaCoreMySQLClient:
             return None
 
         return float(massa) * 2.0 * float(delta_t)
+    
+    def delete_thermal_calculation(self, calculo_id):
+        status, payload = self._request_json(
+            "DELETE",
+            f"/calculos-termicos/{calculo_id}"
+        )
+
+        return payload

@@ -120,7 +120,7 @@ class CalculoTermicoResponse(CalculoTermicoBase):
     """Resposta com cálculo térmico completo"""
     id: int
     id_experimento: int
-    data_calculo: str
+    data_calculo: Optional[str] = None
 
 
 class TabelaCalculosBase(BaseModel):
@@ -467,34 +467,100 @@ def buscar_texto_livre(q: str = Query(..., description="Termo para busca")):
 @app.post("/api/calculos-termicos", response_model=dict, tags=["Cálculos Térmicos"])
 def criar_calculo_termico(calculo: CalculoTermicoCreate):
     """
-    ✅ Criar novo cálculo térmico
+    ✅ UPSERT cálculo térmico (1 linha por experimento)
+
+    Regras:
+    - Se já existir registro para `id_experimento`, faz UPDATE apenas dos campos enviados (não-None).
+    - Se não existir, faz INSERT.
+    - Se existirem múltiplas linhas antigas para o mesmo experimento, mantém a mais recente e remove as demais.
+
+    Observação:
+    - `calculation_type` é metadado opcional (último tipo atualizado).
     """
     try:
         with get_db() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
+
+            # Buscar todas as linhas existentes para o experimento (p/ deduplicar)
+            cursor.execute(
+                """
+                SELECT id
+                FROM calculos_termicos
+                WHERE id_experimento = %s
+                ORDER BY data_calculo DESC, id DESC
+                """,
+                (calculo.id_experimento,),
+            )
+            existing_rows = cursor.fetchall() or []
+            primary_id = int(existing_rows[0]["id"]) if existing_rows else None
+
+            # Campos para atualizar (somente não-None)
+            data = calculo.dict(exclude_unset=True)
+            data.pop("id_experimento", None)
+
+            update_fields: list[str] = []
+            update_values: list[object] = []
+            for field_name, value in data.items():
+                if value is None:
+                    continue
+                update_fields.append(f"{field_name} = %s")
+                update_values.append(value)
+
+            if primary_id is not None:
+                # Dedup: remove registros antigos, mantendo o mais recente
+                if len(existing_rows) > 1:
+                    ids_to_delete = [int(r["id"]) for r in existing_rows[1:] if r.get("id") is not None]
+                    if ids_to_delete:
+                        placeholders = ", ".join(["%s"] * len(ids_to_delete))
+                        cursor_del = conn.cursor()
+                        cursor_del.execute(
+                            f"DELETE FROM calculos_termicos WHERE id IN ({placeholders})",
+                            ids_to_delete,
+                        )
+
+                # UPDATE apenas do que veio no payload
+                if update_fields:
+                    cursor_upd = conn.cursor()
+                    update_values.append(primary_id)
+                    query = f"UPDATE calculos_termicos SET {', '.join(update_fields)} WHERE id = %s"
+                    cursor_upd.execute(query, update_values)
+                    conn.commit()
+
+                return {
+                    "status": "ok",
+                    "id": primary_id,
+                    "mensagem": "Cálculo atualizado com sucesso",
+                }
+
+            # INSERT se não existir
+            cursor_ins = conn.cursor()
             query = """
             INSERT INTO calculos_termicos
             (id_experimento, temperatura_inicial, temperatura_final, delta_temperatura,
-             calor_latente, calor_sensivel, energia_armazenada, densidade_energetica, eficiencia)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+             calor_latente, calor_sensivel, energia_armazenada, densidade_energetica, eficiencia, calculation_type)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(query, (
-                calculo.id_experimento,
-                calculo.temperatura_inicial,
-                calculo.temperatura_final,
-                calculo.delta_temperatura,
-                calculo.calor_latente,
-                calculo.calor_sensivel,
-                calculo.energia_armazenada,
-                calculo.densidade_energetica,
-                calculo.eficiencia
-            ))
+            cursor_ins.execute(
+                query,
+                (
+                    calculo.id_experimento,
+                    calculo.temperatura_inicial,
+                    calculo.temperatura_final,
+                    calculo.delta_temperatura,
+                    calculo.calor_latente,
+                    calculo.calor_sensivel,
+                    calculo.energia_armazenada,
+                    calculo.densidade_energetica,
+                    calculo.eficiencia,
+                    calculo.calculation_type,
+                ),
+            )
             conn.commit()
-            
+
             return {
                 "status": "ok",
-                "id": cursor.lastrowid,
-                "mensagem": "Cálculo criado com sucesso"
+                "id": cursor_ins.lastrowid,
+                "mensagem": "Cálculo criado com sucesso",
             }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
@@ -601,6 +667,44 @@ def listar_calculos_por_experimento(experimento_id: int):
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
 
 
+@app.get(
+    "/api/calculos-termicos/experimento/{experimento_id}/tipo/{calculation_type}",
+    response_model=CalculoTermicoResponse,
+    tags=["Cálculos Térmicos"],
+)
+def obter_calculo_por_experimento_tipo(experimento_id: int, calculation_type: str):
+    """
+    ✅ Obter cálculo térmico por experimento (1 linha por experimento).
+
+    `calculation_type` é aceito na URL apenas para compatibilidade com a UI/dashboard,
+    mas o filtro por tipo não é aplicado no banco porque agora o modelo é 1 linha por experimento.
+    """
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT * FROM calculos_termicos
+                WHERE id_experimento = %s
+                ORDER BY data_calculo DESC
+                LIMIT 1
+                """,
+                (experimento_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Cálculo não encontrado")
+            # Mantém o tipo como metadado opcional (último tipo atualizado ou o solicitado)
+            if not row.get("calculation_type"):
+                row["calculation_type"] = calculation_type
+            _stringify_datetime_fields(row, "data_calculo")
+            return row
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
+
+
 # ==================== ENDPOINTS: MÉTRICAS (DASHBOARD) ====================
 
 @app.get("/api/experimentos/{experimento_id}/metricas", response_model=MetricasResponse, tags=["Dashboard"])
@@ -652,6 +756,49 @@ def obter_metricas(experimento_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro: {str(e)}")
+    
+@app.delete("/api/calculos-termicos/{calculo_id}", tags=["Cálculos Térmicos"])
+def deletar_calculo_termico(calculo_id: int):
+
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # verifica existência
+            cursor.execute(
+                "SELECT id FROM calculos_termicos WHERE id = %s",
+                (calculo_id,)
+            )
+
+            calculo = cursor.fetchone()
+
+            if not calculo:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Cálculo térmico não encontrado"
+                )
+
+            # DELETE SOMENTE DO CÁLCULO
+            cursor.execute(
+                "DELETE FROM calculos_termicos WHERE id = %s",
+                (calculo_id,)
+            )
+
+            conn.commit()
+
+            return {
+                "success": True,
+                "message": "Cálculo térmico deletado com sucesso"
+            }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Erro ao deletar cálculo: {str(e)}"
+        )
 
 
 # ==================== HEALTH CHECK ====================

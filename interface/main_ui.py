@@ -116,6 +116,8 @@ class MainUI(ctk.CTk):
     # Carrega uma página no content frame
     def load_page(self, page_name: str):
         if self.current_screen is not None:
+            if self._dashboard_ref is self.current_screen:
+                self._dashboard_ref = None
             self.current_screen.destroy()
 
         page_class = self.pages.get(page_name)
@@ -155,8 +157,20 @@ class MainUI(ctk.CTk):
             self._dashboard_ref.load_dashboard_data()
 
     def _handle_calculation_saved(self) -> None:
-        if self._dashboard_ref is not None and hasattr(self._dashboard_ref, "load_dashboard_data"):
-            self._dashboard_ref.load_dashboard_data()
+        dash = self._dashboard_ref
+        if dash is None or not hasattr(dash, "load_dashboard_data"):
+            return
+        try:
+            if hasattr(dash, "winfo_exists") and not dash.winfo_exists():
+                return
+        except Exception:
+            return
+
+        try:
+            # Evita atualizar a UI durante destruição/troca de telas.
+            self.after_idle(dash.load_dashboard_data)
+        except Exception:
+            return
 
     def logout(self) -> None:
         clear_user()

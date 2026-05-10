@@ -373,6 +373,57 @@ class DatabaseManager:
             cur = self.conn.execute(sql, {k: data.get(k) for k in keys})
             return int(cur.lastrowid)
 
+    def upsert_thermal_calculation(self, data: dict[str, Any]) -> int:
+        """
+        UPSERT (1 linha por experimento) para fallback SQLite.
+
+        Regra:
+        - Se existir registro para `experiment_id`, faz UPDATE apenas dos campos fornecidos (não-None).
+        - Se não existir, faz INSERT.
+        - Se existirem múltiplos registros antigos, mantém o mais recente e remove os demais.
+        """
+        experiment_id = data.get("experiment_id")
+        if experiment_id is None:
+            raise ValueError("experiment_id é obrigatório para upsert em thermal_calculations.")
+
+        # Busca registros existentes (deduplicação)
+        existing = self.conn.execute(
+            """
+            SELECT id
+            FROM thermal_calculations
+            WHERE experiment_id = ?
+            ORDER BY datetime(date_created) DESC, id DESC
+            """,
+            (int(experiment_id),),
+        ).fetchall()
+
+        primary_id = int(existing[0]["id"]) if existing else None
+
+        keys = [
+            k
+            for k, v in data.items()
+            if k in EXPECTED_THERMAL_CALC_COLUMNS and k not in {"id", "date_created"} and v is not None
+        ]
+
+        if primary_id is not None:
+            # Dedup: remove antigos
+            if len(existing) > 1:
+                ids_to_delete = [int(r["id"]) for r in existing[1:]]
+                with self.conn:
+                    self.conn.executemany("DELETE FROM thermal_calculations WHERE id = ?", [(i,) for i in ids_to_delete])
+
+            if keys:
+                set_sql = ", ".join([f"{k} = :{k}" for k in keys])
+                sql = f"UPDATE thermal_calculations SET {set_sql} WHERE id = :id"
+                params = {k: data.get(k) for k in keys}
+                params["id"] = primary_id
+                with self.conn:
+                    self.conn.execute(sql, params)
+            return primary_id
+
+        # INSERT se não existir
+        return self.insert_thermal_calculation(data)
+
     def list_thermal_calculations(self, limit: int | None = None) -> list[sqlite3.Row]:
         sql = """
             SELECT * FROM thermal_calculations
@@ -491,3 +542,17 @@ class DatabaseManager:
             return None
         # Modelo fixo: 2.0 kJ/kg·°C (equivalente a 2.0 J/g·°C)
         return float(massa) * 2.0 * float(delta_t)
+
+    def delete_thermal_calculation(self, calculo_id):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "DELETE FROM thermal_calculations WHERE id = ?",
+            (calculo_id,)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return True
