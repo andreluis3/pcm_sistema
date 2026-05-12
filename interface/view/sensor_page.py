@@ -1,7 +1,13 @@
+import json
+import threading
 import tkinter as tk
+from datetime import datetime
 from typing import List
 
 import customtkinter as ctk
+import serial
+import serial.tools.list_ports
+
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
@@ -12,32 +18,41 @@ from ui_styles import (
     FONT_TEMP,
     FONT_LABEL,
     WIDGET_HEIGHT_NORMAL,
-    WIDGET_HEIGHT_LARGE,
     PAD_SMALL,
     PAD_NORMAL,
     PAD_LARGE,
     THEME_COLORS,
     button_style,
-    card_style,
 )
-
 
 COLORS = THEME_COLORS
 
 
+# =========================================================
+# CHART
+# =========================================================
+
 class MinimalLineChart:
     def __init__(self, parent) -> None:
         self.figure = Figure(figsize=(5.6, 2.4), dpi=100)
-        # UI REFATORADA: gráfico integrado no dark mode
+
         self.figure.patch.set_facecolor(COLORS["card"])
+
         self.ax = self.figure.add_subplot(111)
         self.ax.set_facecolor(COLORS["card"])
+
         for side in ["bottom", "top", "left", "right"]:
             self.ax.spines[side].set_visible(False)
-        self.ax.set_xticks([])
-        self.ax.set_yticks([])
 
-        (self.line,) = self.ax.plot([], [], color=COLORS["accent_alt"], linewidth=2.4)
+        self.ax.tick_params(colors=COLORS["text_secondary"])
+        self.ax.grid(True, alpha=0.15)
+
+        (self.line,) = self.ax.plot(
+            [],
+            [],
+            color=COLORS["accent_alt"],
+            linewidth=2.5
+        )
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=parent)
         self.widget = self.canvas.get_tk_widget()
@@ -45,102 +60,174 @@ class MinimalLineChart:
     def update(self, data: List[float]) -> None:
         if not data:
             return
+
         self.line.set_data(range(len(data)), data)
-        self.ax.set_xlim(0, max(49, len(data) - 1))
-        min_v, max_v = min(data), max(data)
-        spread = max(0.6, (max_v - min_v) * 0.15)
+
+        self.ax.set_xlim(0, max(30, len(data)))
+
+        min_v = min(data)
+        max_v = max(data)
+
+        spread = max(1, (max_v - min_v) * 0.2)
+
         self.ax.set_ylim(min_v - spread, max_v + spread)
+
         self.canvas.draw_idle()
 
 
+# =========================================================
+# SENSOR PAGE
+# =========================================================
+
 class SensorPage(ctk.CTkFrame):
+
+    # =====================================================
+    # INIT
+    # =====================================================
+
     def __init__(self, parent) -> None:
         super().__init__(parent, fg_color=COLORS["bg"])
+
         self.grid_columnconfigure(0, weight=3)
         self.grid_columnconfigure(1, weight=1)
+
         self.grid_rowconfigure(2, weight=1)
 
-        self.sensor_temperature_var = ctk.StringVar(value="-- °C")
-        self.mqtt_status_var = ctk.StringVar(value="MQTT: Tentando reconectar...")
-        self.temperature_history: List[float] = []
+        # =========================
+        # STATE
+        # =========================
 
-        self._config_expanded = True
-        self._mqtt_status_label = None
-        self._gauge_value_label = None
+        self.temperature_history: List[float] = []
+        self.sensor_logs: List[dict] = []
+
+        self.serial_connection = None
+        self.serial_running = False
+        self.serial_thread = None
+
+        self.connection_mode = ctk.StringVar(value="Serial")
+
+        self.sensor_temperature_var = ctk.StringVar(value="-- °C")
+
+        self.connection_status_var = ctk.StringVar(
+            value="🔴 Desconectado"
+        )
+
+        self.last_reading_var = ctk.StringVar(
+            value="Última leitura: --"
+        )
+
+        # =========================
+        # UI REFS
+        # =========================
+
         self._chart = None
+        self._status_label = None
 
         self._build_layout()
 
-    def _build_layout(self) -> None:
+    # =====================================================
+    # LAYOUT
+    # =====================================================
+
+    def _build_layout(self):
+
         self.create_header()
+
         self.create_temperature_gauge()
+
         self.create_temperature_graph()
+
         self.create_config_panel()
 
-    def create_header(self) -> None:
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=PAD_LARGE, pady=(6, PAD_NORMAL))
+    # =====================================================
+    # HEADER
+    # =====================================================
+
+    def create_header(self):
+
+        header = ctk.CTkFrame(
+            self,
+            fg_color="transparent"
+        )
+
+        header.grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            sticky="ew",
+            padx=PAD_LARGE,
+            pady=(10, PAD_NORMAL)
+        )
+
         header.grid_columnconfigure(0, weight=1)
 
         title = ctk.CTkLabel(
             header,
             text="Sensor",
-            text_color=COLORS["text_primary"],
             font=FONT_HEADER,
+            text_color=COLORS["text_primary"]
         )
+
         title.grid(row=0, column=0, sticky="w")
 
-        self.create_connection_status(parent=header)
-
-    def create_connection_status(self, parent) -> None:
         status_card = ctk.CTkFrame(
-            parent,
+            header,
             fg_color=COLORS["card"],
             corner_radius=12,
             border_width=1,
-            border_color=COLORS["border"],
+            border_color=COLORS["border"]
         )
-        status_card.grid(row=0, column=1, sticky="e")
 
-        self._mqtt_status_label = ctk.CTkLabel(
+        status_card.grid(row=0, column=1)
+
+        self._status_label = ctk.CTkLabel(
             status_card,
-            textvariable=self.mqtt_status_var,
-            text_color=COLORS["text_secondary"],
+            textvariable=self.connection_status_var,
             font=FONT_LABEL,
+            text_color=COLORS["text_secondary"]
         )
-        self._mqtt_status_label.grid(row=0, column=0, padx=PAD_LARGE, pady=PAD_SMALL)
 
-    def create_temperature_gauge(self) -> None:
+        self._status_label.grid(
+            row=0,
+            column=0,
+            padx=18,
+            pady=8
+        )
+
+    # =====================================================
+    # GAUGE
+    # =====================================================
+
+    def create_temperature_gauge(self):
+
         gauge_card = ctk.CTkFrame(
             self,
             fg_color=COLORS["card"],
             corner_radius=12,
             border_width=1,
-            border_color=COLORS["border"],
+            border_color=COLORS["border"]
         )
-        gauge_card.grid(row=1, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
-        gauge_card.grid_rowconfigure(0, weight=1)
-        gauge_card.grid_columnconfigure(0, weight=1)
+
+        gauge_card.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            padx=PAD_LARGE,
+            pady=(0, PAD_NORMAL)
+        )
 
         canvas_size = 260
+
         canvas = tk.Canvas(
             gauge_card,
             width=canvas_size,
             height=canvas_size,
-            highlightthickness=0,
             bg=COLORS["card"],
+            highlightthickness=0
         )
-        canvas.grid(row=0, column=0, pady=PAD_LARGE)
 
-        shadow_offset = 8
-        canvas.create_oval(
-            20 + shadow_offset,
-            20 + shadow_offset,
-            canvas_size - 20 + shadow_offset,
-            canvas_size - 20 + shadow_offset,
-            fill=COLORS["shadow"],
-            outline="",
-        )
+        canvas.pack(pady=PAD_LARGE)
+
         canvas.create_oval(
             20,
             20,
@@ -148,304 +235,594 @@ class SensorPage(ctk.CTkFrame):
             canvas_size - 20,
             fill=COLORS["card_soft"],
             outline=COLORS["border"],
-            width=2,
+            width=2
         )
+
         canvas.create_arc(
             26,
             26,
             canvas_size - 26,
             canvas_size - 26,
             start=110,
-            extent=120,
-            outline=COLORS["white"],
-            width=3,
+            extent=320,
             style="arc",
+            width=5,
+            outline=COLORS["primary"]
         )
 
-        self._gauge_value_label = ctk.CTkLabel(
+        value_label = ctk.CTkLabel(
             gauge_card,
             textvariable=self.sensor_temperature_var,
-            text_color=COLORS["primary"],
             font=FONT_TEMP,
+            text_color=COLORS["primary"]
         )
-        self._gauge_value_label.place(relx=0.5, rely=0.5, anchor="center")
 
-        gauge_hint = ctk.CTkLabel(
+        value_label.place(
+            relx=0.5,
+            rely=0.48,
+            anchor="center"
+        )
+
+        info = ctk.CTkLabel(
             gauge_card,
             text="Temperatura IR",
-            text_color=COLORS["text_secondary"],
             font=FONT_LABEL,
+            text_color=COLORS["text_secondary"]
         )
-        gauge_hint.place(relx=0.5, rely=0.82, anchor="center")
 
-    def create_temperature_graph(self) -> None:
+        info.place(
+            relx=0.5,
+            rely=0.80,
+            anchor="center"
+        )
+
+    # =====================================================
+    # GRAPH
+    # =====================================================
+
+    def create_temperature_graph(self):
+
         graph_card = ctk.CTkFrame(
             self,
             fg_color=COLORS["card"],
             corner_radius=12,
             border_width=1,
-            border_color=COLORS["border"],
+            border_color=COLORS["border"]
         )
-        graph_card.grid(row=2, column=0, sticky="nsew", padx=PAD_LARGE, pady=(0, PAD_LARGE))
+
+        graph_card.grid(
+            row=2,
+            column=0,
+            sticky="nsew",
+            padx=PAD_LARGE,
+            pady=(0, PAD_LARGE)
+        )
+
         graph_card.grid_columnconfigure(0, weight=1)
         graph_card.grid_rowconfigure(1, weight=1)
 
         title = ctk.CTkLabel(
             graph_card,
-            text="Tendência",
-            text_color=COLORS["text_secondary"],
+            text="Tendência Térmica",
             font=FONT_TITLE,
+            text_color=COLORS["text_primary"]
         )
-        title.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, 0))
+
+        title.grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=PAD_LARGE,
+            pady=(PAD_NORMAL, 0)
+        )
 
         self._chart = MinimalLineChart(graph_card)
-        self._chart.widget.grid(row=1, column=0, sticky="nsew", padx=PAD_LARGE, pady=PAD_NORMAL)
 
-    def create_config_panel(self) -> None:
+        self._chart.widget.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            padx=PAD_LARGE,
+            pady=PAD_NORMAL
+        )
+
+    # =====================================================
+    # CONFIG PANEL
+    # =====================================================
+
+    def create_config_panel(self):
+
         panel = ctk.CTkFrame(
             self,
             fg_color=COLORS["card"],
             corner_radius=12,
             border_width=1,
-            border_color=COLORS["border"],
+            border_color=COLORS["border"]
         )
-        panel.grid(row=1, column=1, rowspan=2, sticky="nsew", padx=(0, PAD_LARGE), pady=(0, PAD_LARGE))
+
+        panel.grid(
+            row=1,
+            column=1,
+            rowspan=2,
+            sticky="nsew",
+            padx=(0, PAD_LARGE),
+            pady=(0, PAD_LARGE)
+        )
+
         panel.grid_columnconfigure(0, weight=1)
 
-        header = ctk.CTkFrame(panel, fg_color=COLORS["card"], corner_radius=0)
-        header.grid(row=0, column=0, sticky="ew", padx=PAD_NORMAL, pady=(PAD_NORMAL, PAD_SMALL))
-        header.grid_columnconfigure(0, weight=1)
+        title = ctk.CTkLabel(
+            panel,
+            text="Central de Conexão",
+            font=FONT_TITLE,
+            text_color=COLORS["text_primary"]
+        )
+
+        title.grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=PAD_LARGE,
+            pady=(PAD_NORMAL, PAD_SMALL)
+        )
+
+        # ==========================================
+        # CONNECTION MODE
+        # ==========================================
+
+        mode_frame = ctk.CTkFrame(
+            panel,
+            fg_color=COLORS["card_soft"]
+        )
+
+        mode_frame.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=PAD_NORMAL,
+            pady=(0, PAD_NORMAL)
+        )
+
+        mode_label = ctk.CTkLabel(
+            mode_frame,
+            text="Modo de conexão",
+            font=FONT_LABEL,
+            text_color=COLORS["text_secondary"]
+        )
+
+        mode_label.pack(
+            anchor="w",
+            padx=PAD_NORMAL,
+            pady=(PAD_NORMAL, 4)
+        )
+
+        self.connection_option = ctk.CTkOptionMenu(
+            mode_frame,
+            values=[
+                "Serial",
+                "MQTT",
+                "API",
+                "Simulação"
+            ],
+            variable=self.connection_mode,
+            command=self.on_connection_mode_changed
+        )
+
+        self.connection_option.pack(
+            fill="x",
+            padx=PAD_NORMAL,
+            pady=(0, PAD_NORMAL)
+        )
+
+        # ==========================================
+        # SERIAL SECTION
+        # ==========================================
+
+        self.serial_section = ctk.CTkFrame(
+            panel,
+            fg_color=COLORS["card_soft"]
+        )
+
+        self.serial_section.grid(
+            row=2,
+            column=0,
+            sticky="ew",
+            padx=PAD_NORMAL,
+            pady=(0, PAD_NORMAL)
+        )
+
+        self._build_serial_section()
+
+        # ==========================================
+        # LOG SECTION
+        # ==========================================
+
+        self._build_logs(panel)
+
+    # =====================================================
+    # SERIAL SECTION
+    # =====================================================
+
+    def _build_serial_section(self):
 
         title = ctk.CTkLabel(
-            header,
-            text="Configurações",
-            text_color=COLORS["text_primary"],
+            self.serial_section,
+            text="Conexão Serial",
             font=FONT_TITLE,
+            text_color=COLORS["text_primary"]
         )
-        title.grid(row=0, column=0, sticky="w")
 
-        toggle_btn = ctk.CTkButton(
-            header,
-            text="Ocultar" if self._config_expanded else "Mostrar",
-            width=88,
-            font=FONT_NORMAL,
-            command=self._toggle_config_panel,
-            **button_style("neutral"),
+        title.pack(
+            anchor="w",
+            padx=PAD_NORMAL,
+            pady=(PAD_NORMAL, PAD_SMALL)
         )
-        toggle_btn.grid(row=0, column=1, sticky="e")
-        self._toggle_btn = toggle_btn
 
-        self._config_body = ctk.CTkFrame(panel, fg_color=COLORS["card"], corner_radius=0)
-        self._config_body.grid(row=1, column=0, sticky="nsew", padx=PAD_NORMAL, pady=(0, PAD_NORMAL))
-        self._config_body.grid_columnconfigure(0, weight=1)
-
-        self._build_mqtt_section(self._config_body)
-        self._build_sensor_section(self._config_body)
-
-    def _build_mqtt_section(self, parent) -> None:
-        section = ctk.CTkFrame(
-            parent,
-            fg_color=COLORS["card_soft"],
-            corner_radius=12,
-            border_width=1,
-            border_color=COLORS["border"],
-        )
-        section.grid(row=0, column=0, sticky="ew", pady=(0, PAD_NORMAL))
-        section.grid_columnconfigure(0, weight=1)
+        # COM PORT
 
         label = ctk.CTkLabel(
-            section,
-            text="Configurações MQTT",
-            text_color=COLORS["text_primary"],
-            font=FONT_TITLE,
-        )
-        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
-
-        host_label = ctk.CTkLabel(
-            section,
-            text="Host / IP",
-            text_color=COLORS["text_secondary"],
+            self.serial_section,
+            text="Porta COM",
             font=FONT_LABEL,
+            text_color=COLORS["text_secondary"]
         )
-        host_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE)
-        self.host_entry = ctk.CTkEntry(
-            section,
-            placeholder_text="192.168.1.15",
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color=COLORS["card"],
-            border_color=COLORS["border"],
-            text_color=COLORS["text_primary"],
-            font=FONT_NORMAL,
-        )
-        self.host_entry.grid(row=2, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
-        port_label = ctk.CTkLabel(
-            section,
-            text="Porta",
-            text_color=COLORS["text_secondary"],
+        label.pack(anchor="w", padx=PAD_NORMAL)
+
+        ports = self.get_serial_ports()
+
+        self.com_option = ctk.CTkOptionMenu(
+            self.serial_section,
+            values=ports if ports else ["COM3"]
+        )
+
+        self.com_option.pack(
+            fill="x",
+            padx=PAD_NORMAL,
+            pady=(0, PAD_SMALL)
+        )
+
+        # BAUDRATE
+
+        baud_label = ctk.CTkLabel(
+            self.serial_section,
+            text="Baudrate",
             font=FONT_LABEL,
+            text_color=COLORS["text_secondary"]
         )
-        port_label.grid(row=3, column=0, sticky="w", padx=PAD_LARGE)
-        self.port_entry = ctk.CTkEntry(
-            section,
-            placeholder_text="1883",
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color=COLORS["card"],
-            border_color=COLORS["border"],
-            text_color=COLORS["text_primary"],
-            font=FONT_NORMAL,
-        )
-        self.port_entry.grid(row=4, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
-        topic_label = ctk.CTkLabel(
-            section,
-            text="Tópico de leitura",
-            text_color=COLORS["text_secondary"],
-            font=FONT_LABEL,
-        )
-        topic_label.grid(row=5, column=0, sticky="w", padx=PAD_LARGE)
-        self.topic_entry = ctk.CTkEntry(
-            section,
-            placeholder_text="pcm/sensor/ir/temp",
-            height=WIDGET_HEIGHT_NORMAL,
-            fg_color=COLORS["card"],
-            border_color=COLORS["border"],
-            text_color=COLORS["text_primary"],
-            font=FONT_NORMAL,
-        )
-        self.topic_entry.grid(row=6, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
+        baud_label.pack(anchor="w", padx=PAD_NORMAL)
 
-        button_row = ctk.CTkFrame(section, fg_color=COLORS["card_soft"], corner_radius=0)
-        button_row.grid(row=7, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
-        button_row.grid_columnconfigure(0, weight=1)
-        button_row.grid_columnconfigure(1, weight=1)
+        self.baudrate_option = ctk.CTkOptionMenu(
+            self.serial_section,
+            values=["9600", "115200"]
+        )
+
+        self.baudrate_option.set("115200")
+
+        self.baudrate_option.pack(
+            fill="x",
+            padx=PAD_NORMAL,
+            pady=(0, PAD_NORMAL)
+        )
+
+        # BUTTONS
+
+        button_frame = ctk.CTkFrame(
+            self.serial_section,
+            fg_color="transparent"
+        )
+
+        button_frame.pack(
+            fill="x",
+            padx=PAD_NORMAL,
+            pady=(0, PAD_NORMAL)
+        )
 
         self.connect_btn = ctk.CTkButton(
-            button_row,
+            button_frame,
             text="Conectar",
-            font=FONT_TITLE,
-            **button_style("primary"),
+            command=self.connect_serial,
+            **button_style("primary")
         )
-        self.connect_btn.grid(row=0, column=0, sticky="ew", padx=(0, PAD_SMALL))
+
+        self.connect_btn.pack(
+            side="left",
+            expand=True,
+            fill="x",
+            padx=(0, 5)
+        )
 
         self.disconnect_btn = ctk.CTkButton(
-            button_row,
+            button_frame,
             text="Desconectar",
-            font=FONT_TITLE,
-            **button_style("danger"),
+            command=self.disconnect_serial,
+            **button_style("danger")
         )
-        self.disconnect_btn.grid(row=0, column=1, sticky="ew", padx=(PAD_SMALL, 0))
 
-    def _build_sensor_section(self, parent) -> None:
-        section = ctk.CTkFrame(
+        self.disconnect_btn.pack(
+            side="left",
+            expand=True,
+            fill="x",
+            padx=(5, 0)
+        )
+
+    # =====================================================
+    # LOGS
+    # =====================================================
+
+    def _build_logs(self, parent):
+
+        log_frame = ctk.CTkFrame(
             parent,
-            fg_color=COLORS["card_soft"],
-            corner_radius=12,
-            border_width=1,
-            border_color=COLORS["border"],
+            fg_color=COLORS["card_soft"]
         )
-        section.grid(row=1, column=0, sticky="ew")
-        section.grid_columnconfigure(0, weight=1)
 
-        label = ctk.CTkLabel(
-            section,
-            text="Configurações Sensor IR",
-            text_color=COLORS["text_primary"],
+        log_frame.grid(
+            row=3,
+            column=0,
+            sticky="nsew",
+            padx=PAD_NORMAL,
+            pady=(0, PAD_NORMAL)
+        )
+
+        title = ctk.CTkLabel(
+            log_frame,
+            text="Logs do Sensor",
             font=FONT_TITLE,
+            text_color=COLORS["text_primary"]
         )
-        label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=(PAD_NORMAL, PAD_SMALL))
 
-        emiss_label = ctk.CTkLabel(
-            section,
-            text="Emissividade (0.1 – 1.0)",
-            text_color=COLORS["text_secondary"],
-            font=FONT_LABEL,
+        title.pack(
+            anchor="w",
+            padx=PAD_NORMAL,
+            pady=(PAD_NORMAL, PAD_SMALL)
         )
-        emiss_label.grid(row=1, column=0, sticky="w", padx=PAD_LARGE)
-        self.emissivity_entry = ctk.CTkEntry(
-            section,
-            placeholder_text="0.95",
-            height=WIDGET_HEIGHT_NORMAL,
+
+        self.log_textbox = ctk.CTkTextbox(
+            log_frame,
+            height=180,
             fg_color=COLORS["card"],
-            border_color=COLORS["border"],
-            text_color=COLORS["text_primary"],
-            font=FONT_NORMAL,
+            text_color=COLORS["text_primary"]
         )
-        self.emissivity_entry.grid(row=2, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
-        refresh_label = ctk.CTkLabel(
-            section,
-            text="Intervalo de refresh",
-            text_color=COLORS["text_secondary"],
-            font=FONT_LABEL,
+        self.log_textbox.pack(
+            fill="both",
+            expand=True,
+            padx=PAD_NORMAL,
+            pady=(0, PAD_NORMAL)
         )
-        refresh_label.grid(row=3, column=0, sticky="w", padx=PAD_LARGE)
-        self.refresh_option = ctk.CTkOptionMenu(
-            section,
-            values=["500ms", "1s", "5s"],
-            fg_color=COLORS["card"],
-            button_color=COLORS["primary"],
-            button_hover_color=button_style("primary")["hover_color"],
-            dropdown_fg_color=COLORS["card"],
-            dropdown_text_color=COLORS["text_primary"],
-            text_color=COLORS["text_primary"],
-            font=FONT_NORMAL,
-        )
-        self.refresh_option.set("1s")
-        self.refresh_option.grid(row=4, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_SMALL))
 
-        sample_label = ctk.CTkLabel(
-            section,
-            text="Modo de amostragem",
-            text_color=COLORS["text_secondary"],
-            font=FONT_LABEL,
-        )
-        sample_label.grid(row=5, column=0, sticky="w", padx=PAD_LARGE)
-        self.sample_mode_option = ctk.CTkOptionMenu(
-            section,
-            values=["Temperatura atual", "Média das últimas 5 leituras"],
-            fg_color=COLORS["card"],
-            button_color=COLORS["primary"],
-            button_hover_color=button_style("primary")["hover_color"],
-            dropdown_fg_color=COLORS["card"],
-            dropdown_text_color=COLORS["text_primary"],
-            text_color=COLORS["text_primary"],
-            font=FONT_NORMAL,
-        )
-        self.sample_mode_option.set("Temperatura atual")
-        self.sample_mode_option.grid(row=6, column=0, sticky="ew", padx=PAD_LARGE, pady=(0, PAD_NORMAL))
+    # =====================================================
+    # SERIAL
+    # =====================================================
 
-    def _toggle_config_panel(self) -> None:
-        self._config_expanded = not self._config_expanded
-        if self._config_expanded:
-            self._config_body.grid()
-            self._toggle_btn.configure(text="Ocultar")
-        else:
-            self._config_body.grid_remove()
-            self._toggle_btn.configure(text="Mostrar")
+    def connect_serial(self):
 
-    def update_temperature(self, value) -> None:
         try:
-            numeric = float(value)
-        except (TypeError, ValueError):
-            return
 
-        self.sensor_temperature_var.set(f"{numeric:.1f} °C")
-        self.temperature_history.append(numeric)
-        if len(self.temperature_history) > 50:
-            self.temperature_history = self.temperature_history[-50:]
+            port = self.com_option.get()
+            baudrate = int(self.baudrate_option.get())
+
+            self.serial_connection = serial.Serial(
+                port,
+                baudrate,
+                timeout=1
+            )
+
+            self.serial_running = True
+
+            self.serial_thread = threading.Thread(
+                target=self.serial_read_loop,
+                daemon=True
+            )
+
+            self.serial_thread.start()
+
+            self.update_connection_status(
+                f"🟢 Serial conectada ({port})",
+                success=True
+            )
+
+            self.add_log(
+                f"Conectado na porta {port}"
+            )
+
+        except Exception as e:
+
+            self.update_connection_status(
+                "🔴 Falha na conexão",
+                success=False
+            )
+
+            self.add_log(
+                f"ERRO: {e}"
+            )
+
+    def disconnect_serial(self):
+
+        self.serial_running = False
+
+        try:
+
+            if self.serial_connection:
+                self.serial_connection.close()
+
+        except:
+            pass
+
+        self.update_connection_status(
+            "🔴 Serial desconectada",
+            success=False
+        )
+
+        self.add_log(
+            "Conexão encerrada"
+        )
+
+    def serial_read_loop(self):
+
+        while self.serial_running:
+
+            try:
+
+                raw = self.serial_connection.readline()
+
+                line = raw.decode(
+                    "utf-8",
+                    errors="ignore"
+                ).strip()
+
+                if not line:
+                    continue
+
+                self.process_sensor_data(line)
+
+            except Exception as e:
+
+                self.add_log(
+                    f"Erro leitura serial: {e}"
+                )
+
+    # =====================================================
+    # PROCESS DATA
+    # =====================================================
+
+    def process_sensor_data(self, raw_data):
+
+        try:
+
+            # FORMATO:
+            # TEMP:35.7
+
+            if "TEMP:" in raw_data:
+
+                value = raw_data.replace(
+                    "TEMP:",
+                    ""
+                ).strip()
+
+                temperature = float(value)
+
+            else:
+
+                # JSON
+                data = json.loads(raw_data)
+
+                temperature = float(
+                    data["temperatura"]
+                )
+
+            self.after(
+                0,
+                lambda: self.update_temperature(
+                    temperature
+                )
+            )
+
+        except Exception as e:
+
+            self.add_log(
+                f"Erro processamento: {e}"
+            )
+
+    # =====================================================
+    # UPDATE TEMP
+    # =====================================================
+
+    def update_temperature(self, value):
+
+        self.sensor_temperature_var.set(
+            f"{value:.1f} °C"
+        )
+
+        self.last_reading_var.set(
+            f"Última leitura: {value:.1f} °C"
+        )
+
+        self.temperature_history.append(value)
+
+        if len(self.temperature_history) > 120:
+            self.temperature_history = self.temperature_history[-120:]
 
         if self._chart:
-            self._chart.update(self.temperature_history)
+            self._chart.update(
+                self.temperature_history
+            )
 
-    def update_mqtt_status(self, status) -> None:
-        if isinstance(status, bool):
-            text = "MQTT: Conectado" if status else "MQTT: Tentando reconectar..."
-        else:
-            text = str(status)
+        self.save_sensor_log(value)
 
-        self.mqtt_status_var.set(text)
-        is_connected = "conectado" in text.lower()
-        color = COLORS["primary"] if is_connected else COLORS["text_secondary"]
-        if self._mqtt_status_label is not None:
-            self._mqtt_status_label.configure(text_color=color)
+        self.add_log(
+            f"🌡 Temperatura: {value:.2f} °C"
+        )
+
+    # =====================================================
+    # SAVE LOG
+    # =====================================================
+
+    def save_sensor_log(self, temperature):
+
+        self.sensor_logs.append({
+
+            "timestamp": datetime.now(),
+
+            "temperature": temperature,
+
+            "mode": self.connection_mode.get()
+        })
+
+    # =====================================================
+    # STATUS
+    # =====================================================
+
+    def update_connection_status(
+        self,
+        text,
+        success=False
+    ):
+
+        self.connection_status_var.set(text)
+
+        color = (
+            COLORS["primary"]
+            if success
+            else COLORS["danger"]
+        )
+
+        if self._status_label:
+            self._status_label.configure(
+                text_color=color
+            )
+
+    # =====================================================
+    # LOG UI
+    # =====================================================
+
+    def add_log(self, message):
+
+        timestamp = datetime.now().strftime(
+            "%H:%M:%S"
+        )
+
+        self.log_textbox.insert(
+            "end",
+            f"[{timestamp}] {message}\n"
+        )
+
+        self.log_textbox.see("end")
+
+    # =====================================================
+    # UTILS
+    # =====================================================
+
+    def get_serial_ports(self):
+
+        ports = serial.tools.list_ports.comports()
+
+        return [p.device for p in ports]
+
+    def on_connection_mode_changed(self, mode):
+
+        self.add_log(
+            f"Modo alterado para {mode}"
+        )
