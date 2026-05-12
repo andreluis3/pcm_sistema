@@ -11,13 +11,14 @@ def _font(size: int, weight: str = "normal") -> tuple[str, int, str]:
     return (FONT_FAMILY, size, weight)
 
 # Typography (requested)
-FONT_HEADER = _font(28, "bold")          # Títulos
+FONT_HEADER = _font(30, "bold")          # Títulos
 FONT_METRIC = _font(24, "bold")          # Métricas (valores)
 FONT_LABEL = _font(13, "normal")         # Labels secundários (approx. medium)
 
 # Supporting sizes
 FONT_TITLE = _font(18, "bold")
 FONT_NORMAL = _font(15, "normal")
+FONT_CARD_VALUE = _font(16, "bold")
 FONT_SMALL = _font(13, "normal")
 FONT_TEMP = FONT_METRIC
 
@@ -26,10 +27,11 @@ WIDGET_HEIGHT_NORMAL = 38
 WIDGET_HEIGHT_LARGE = 44
 
 PAD_SMALL = 8
-PAD_NORMAL = 10
-PAD_LARGE = 20
+PAD_NORMAL = 14
+PAD_LARGE = 24
+PAD_GAP = 18
 PAD_CARD = 10          # padding interno dos cards
-PAD_GAP = 20           # padding externo entre cards
+# padding externo entre cards
 
 # Legacy aliases (keep for backward compatibility)
 FONT_SUBTITLE = FONT_TITLE
@@ -61,6 +63,7 @@ THEME_COLORS = {
     "text_secondary": "#94A3B8",
     "text_muted": "#94A3B8",
     "white": "#F8FAFC",
+    
 }
 
 
