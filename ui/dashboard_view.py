@@ -200,13 +200,16 @@ class DashboardPage(ctk.CTkFrame):
             return
         self._ui_queue_after_id = self.after(50, self._process_ui_queue)
 
-    def destroy(self) -> None:
+    def destroy(self):
+
         if self._ui_queue_after_id is not None:
             try:
                 self.after_cancel(self._ui_queue_after_id)
             except Exception:
                 pass
+
             self._ui_queue_after_id = None
+
         super().destroy()
 
     # --- Helpers -----------------------------------------------------------

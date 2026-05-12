@@ -94,7 +94,7 @@ class DashboardPage(ctk.CTkFrame):
 
         self._serie.append(self._temperatura)
         self.grafico.push(self._temperatura)
-        self.grafico.draw()
+        self.grafico.draw_idle()
 
         self._update_after_id = self.after(1000, self._update_loop)
 

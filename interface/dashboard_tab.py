@@ -671,16 +671,39 @@ class DashboardTab(ctk.CTkFrame):
         self._pcm_canvas.itemconfigure(self._pcm_temp_text, text=self._canvas_temp_var.get())
 
     def _animate_pcm(self) -> None:
-        # CORREÇÃO: Verificar se widget ainda existe antes de animar
-        if not self.winfo_exists():
+
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
             return
-            
+
         if self._pcm_state == "liquid":
             self._anim_phase = (self._anim_phase + 1) % 360
             offset = 3 * (1 if self._anim_phase % 120 < 60 else -1)
-            self._pcm_canvas.coords(self._pcm_inner, 82, 60 + offset, 198, 180 + offset)
+            self._pcm_canvas.coords(
+                self._pcm_inner,
+                82,
+                60 + offset,
+                198,
+                180 + offset
+            )
         else:
-            self._pcm_canvas.coords(self._pcm_inner, 80, 60, 200, 180)
+            self._pcm_canvas.coords(
+                self._pcm_inner,
+                80,
+                60,
+                200,
+                180
+            )
+
+        # CANCELA CALLBACK ANTIGO
+        if self._animate_id is not None:
+            try:
+                self.after_cancel(self._animate_id)
+            except Exception:
+                pass
+
         self._animate_id = self.after(120, self._animate_pcm)
 
     def _compute_average_series(self) -> list[tuple[float, float]]:
