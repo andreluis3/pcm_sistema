@@ -19,7 +19,7 @@ class SerialConnection:
         self.on_log = on_log
 
         self.connection = None
-
+        self.serial_connection = None
         self.running = False
         self.thread = None
 
@@ -108,3 +108,10 @@ class SerialConnection:
                     self.on_log(
                         f"Erro leitura serial: {e}"
                     )
+                    
+    @staticmethod
+    def get_available_ports():
+
+        ports = serial.tools.list_ports.comports()
+
+        return [port.device for port in ports]

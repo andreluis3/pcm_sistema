@@ -6,7 +6,7 @@ from typing import List
 
 import customtkinter as ctk
 
-
+from sensor_module.serial_connection import SerialConnection
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
@@ -722,3 +722,7 @@ class SensorPage(ctk.CTkFrame):
         self.add_log(
             f"Modo alterado para {mode}"
         )
+        
+    def get_serial_ports(self):
+
+        return SerialConnection.get_available_ports()
