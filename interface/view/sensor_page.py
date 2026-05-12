@@ -5,12 +5,12 @@ from datetime import datetime
 from typing import List
 
 import customtkinter as ctk
-import serial
-import serial.tools.list_ports
+
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from sensor_module.sensor_manager import SensorManager
 from ui_styles import (
     FONT_HEADER,
     FONT_NORMAL,
@@ -53,6 +53,7 @@ class MinimalLineChart:
             color=COLORS["accent_alt"],
             linewidth=2.5
         )
+
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=parent)
         self.widget = self.canvas.get_tk_widget()
@@ -114,6 +115,13 @@ class SensorPage(ctk.CTkFrame):
 
         self.last_reading_var = ctk.StringVar(
             value="Última leitura: --"
+            
+        )
+        
+        self.sensor_manager = SensorManager(
+        on_temperature=self.update_temperature,
+        on_status=self.update_connection_status,
+        on_log=self.add_log
         )
 
         # =========================
@@ -532,11 +540,12 @@ class SensorPage(ctk.CTkFrame):
             fill="x",
             padx=(0, 5)
         )
+    
 
         self.disconnect_btn = ctk.CTkButton(
             button_frame,
             text="Desconectar",
-            command=self.disconnect_serial,
+            command=self.disconnect_sensor,
             **button_style("danger")
         )
 
@@ -546,7 +555,32 @@ class SensorPage(ctk.CTkFrame):
             fill="x",
             padx=(5, 0)
         )
+        
 
+
+
+    # =====================================================
+    # SENSOR MANAGER
+    # =====================================================
+
+    def connect_sensor(self):
+
+        mode = self.connection_mode.get()
+
+        config = {
+            "port": self.com_option.get(),
+            "baudrate": int(self.baudrate_option.get())
+        }
+
+        self.sensor_manager.connect(
+            mode,
+            config
+        )
+
+    def disconnect_sensor(self):
+
+        self.sensor_manager.disconnect()
+        
     # =====================================================
     # LOGS
     # =====================================================
@@ -597,135 +631,7 @@ class SensorPage(ctk.CTkFrame):
     # SERIAL
     # =====================================================
 
-    def connect_serial(self):
-
-        try:
-
-            port = self.com_option.get()
-            baudrate = int(self.baudrate_option.get())
-
-            self.serial_connection = serial.Serial(
-                port,
-                baudrate,
-                timeout=1
-            )
-
-            self.serial_running = True
-
-            self.serial_thread = threading.Thread(
-                target=self.serial_read_loop,
-                daemon=True
-            )
-
-            self.serial_thread.start()
-
-            self.update_connection_status(
-                f"🟢 Serial conectada ({port})",
-                success=True
-            )
-
-            self.add_log(
-                f"Conectado na porta {port}"
-            )
-
-        except Exception as e:
-
-            self.update_connection_status(
-                "🔴 Falha na conexão",
-                success=False
-            )
-
-            self.add_log(
-                f"ERRO: {e}"
-            )
-
-    def disconnect_serial(self):
-
-        self.serial_running = False
-
-        try:
-
-            if self.serial_connection:
-                self.serial_connection.close()
-
-        except:
-            pass
-
-        self.update_connection_status(
-            "🔴 Serial desconectada",
-            success=False
-        )
-
-        self.add_log(
-            "Conexão encerrada"
-        )
-
-    def serial_read_loop(self):
-
-        while self.serial_running:
-
-            try:
-
-                raw = self.serial_connection.readline()
-
-                line = raw.decode(
-                    "utf-8",
-                    errors="ignore"
-                ).strip()
-
-                if not line:
-                    continue
-
-                self.process_sensor_data(line)
-
-            except Exception as e:
-
-                self.add_log(
-                    f"Erro leitura serial: {e}"
-                )
-
-    # =====================================================
-    # PROCESS DATA
-    # =====================================================
-
-    def process_sensor_data(self, raw_data):
-
-        try:
-
-            # FORMATO:
-            # TEMP:35.7
-
-            if "TEMP:" in raw_data:
-
-                value = raw_data.replace(
-                    "TEMP:",
-                    ""
-                ).strip()
-
-                temperature = float(value)
-
-            else:
-
-                # JSON
-                data = json.loads(raw_data)
-
-                temperature = float(
-                    data["temperatura"]
-                )
-
-            self.after(
-                0,
-                lambda: self.update_temperature(
-                    temperature
-                )
-            )
-
-        except Exception as e:
-
-            self.add_log(
-                f"Erro processamento: {e}"
-            )
-
+    
     # =====================================================
     # UPDATE TEMP
     # =====================================================
@@ -810,16 +716,6 @@ class SensorPage(ctk.CTkFrame):
         )
 
         self.log_textbox.see("end")
-
-    # =====================================================
-    # UTILS
-    # =====================================================
-
-    def get_serial_ports(self):
-
-        ports = serial.tools.list_ports.comports()
-
-        return [p.device for p in ports]
 
     def on_connection_mode_changed(self, mode):
 
