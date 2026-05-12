@@ -4,6 +4,7 @@ import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import Canvas, TclError, ttk
+from services.dashboard_metrics import calcular_metricas_globais
 
 from services.hybrid_repository import HybridRepository
 from ui_styles import (
@@ -728,8 +729,34 @@ class DashboardTab(ctk.CTkFrame):
 
     # --- Buttons ---------------------------------------------------------
     def _on_average_clicked(self) -> None:
+
+        dados = calcular_metricas_globais(
+            self._experiments,
+            self.db
+        )
+
+        if not dados:
+            return
+
+        self._metric_temp.configure(
+            text=f"{dados['media_temperatura']} °C"
+        )
+
+        self._metric_energy.configure(
+            text=f"{dados['media_energia']} J"
+        )
+
+        self._metric_delta.configure(
+            text=f"{dados['media_tempo']} min"
+        )
+
+        self._metric_rate.configure(
+            text=f"{dados['media_eficiencia']} %"
+        )
+
         self._avg_series = self._compute_average_series()
-        self.update_dashboard()
+
+        self.plot_temperature_graph(self._avg_series)
 
     def _on_export_clicked(self) -> None:
         # Placeholder: integrate with export module if needed.
