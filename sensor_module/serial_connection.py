@@ -1,13 +1,15 @@
+import serial as pyserial
+import serial.tools.list_ports
 import threading
-import serial
+import time
 
 
 class SerialConnection:
 
     def __init__(
         self,
-        port,
-        baudrate,
+        port="COM3",
+        baudrate=115200,
         on_data=None,
         on_log=None
     ):
@@ -18,16 +20,36 @@ class SerialConnection:
         self.on_data = on_data
         self.on_log = on_log
 
-        self.connection = None
-        self.serial_connection = None
+        self.serial = None
+
         self.running = False
         self.thread = None
+
+    # =====================================================
+    # PORTAS DISPONÍVEIS
+    # =====================================================
+
+    @staticmethod
+    def get_available_ports():
+
+        try:
+
+            ports = serial.tools.list_ports.comports()
+
+            return [port.device for port in ports]
+
+        except Exception:
+            return []
+
+    # =====================================================
+    # CONNECT
+    # =====================================================
 
     def connect(self):
 
         try:
 
-            self.connection = serial.Serial(
+            self.serial = serial.Serial(
                 self.port,
                 self.baudrate,
                 timeout=1
@@ -42,17 +64,19 @@ class SerialConnection:
 
             self.thread.start()
 
-            if self.on_log:
-                self.on_log(
-                    f"Serial conectada {self.port}"
-                )
+            self.log(
+                f"Conectado em {self.port}"
+            )
 
         except Exception as e:
 
-            if self.on_log:
-                self.on_log(
-                    f"Erro serial: {e}"
-                )
+            self.log(
+                f"Erro conexão serial: {e}"
+            )
+
+    # =====================================================
+    # DISCONNECT
+    # =====================================================
 
     def disconnect(self):
 
@@ -60,16 +84,19 @@ class SerialConnection:
 
         try:
 
-            if self.connection:
-                self.connection.close()
+            if self.serial:
+                self.serial.close()
 
         except:
             pass
 
-        if self.on_log:
-            self.on_log(
-                "Serial desconectada"
-            )
+        self.log(
+            "Serial desconectada"
+        )
+
+    # =====================================================
+    # LOOP LEITURA
+    # =====================================================
 
     def _read_loop(self):
 
@@ -77,41 +104,47 @@ class SerialConnection:
 
             try:
 
-                if not self.connection:
-                    continue
+                if self.serial.in_waiting:
 
-                raw = self.connection.readline()
+                    line = self.serial.readline().decode(
+                        "utf-8",
+                        errors="ignore"
+                    ).strip()
 
-                line = raw.decode(
-                    "utf-8",
-                    errors="ignore"
-                ).strip()
+                    if line:
 
-                if not line:
-                    continue
+                        self.log(
+                            f"RX -> {line}"
+                        )
 
-                if "TEMP:" in line:
+                        try:
 
-                    value = line.replace(
-                        "TEMP:",
-                        ""
-                    )
+                            value = float(line)
 
-                    temperature = float(value)
+                            if self.on_data:
+                                self.on_data(value)
 
-                    if self.on_data:
-                        self.on_data(temperature)
+                        except:
+
+                            self.log(
+                                f"Dado inválido: {line}"
+                            )
+
+                time.sleep(0.05)
 
             except Exception as e:
 
-                if self.on_log:
-                    self.on_log(
-                        f"Erro leitura serial: {e}"
-                    )
-                    
-    @staticmethod
-    def get_available_ports():
+                self.log(
+                    f"Erro leitura serial: {e}"
+                )
 
-        ports = serial.tools.list_ports.comports()
+                break
 
-        return [port.device for port in ports]
+    # =====================================================
+    # LOG
+    # =====================================================
+
+    def log(self, text):
+
+        if self.on_log:
+            self.on_log(text)

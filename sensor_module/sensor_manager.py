@@ -2,6 +2,8 @@ from sensor_module.serial_connection import SerialConnection
 from sensor_module.simulation_connection import SimulationConnection
 from sensor_module.sensor_buffer import SensorBuffer
 from sensor_module.sensor_repository import SensorRepository
+import serial as pyserial
+import serial.tools.list_ports
 
 
 class SensorManager:
@@ -20,7 +22,6 @@ class SensorManager:
         self.connection = None
 
         self.buffer = SensorBuffer()
-
         self.repository = SensorRepository()
 
         self.mode = None
@@ -122,3 +123,17 @@ class SensorManager:
 
         if self.on_log:
             self.on_log(text)
+            
+    def get_serial_ports(self):
+
+        try:
+
+            ports = pyserial.tools.list_ports.comports()
+
+            return [port.device for port in ports]
+
+        except Exception as e:
+
+            self.log(f"Erro listando portas: {e}")
+
+            return ["COM3"]

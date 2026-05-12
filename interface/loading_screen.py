@@ -132,3 +132,26 @@ class LoadingScreen(ctk.CTk):
         x = int((screen_w - width) / 2)
         y = int((screen_h - height) / 2)
         self.geometry(f"{width}x{height}+{x}+{y}")
+
+
+    def destroy(self):
+
+        if self._animate_id is not None:
+
+            try:
+                self.after_cancel(self._animate_id)
+            except Exception:
+                pass
+
+            self._animate_id = None
+
+        if self._finish_after_id is not None:
+
+            try:
+                self.after_cancel(self._finish_after_id)
+            except Exception:
+                pass
+
+            self._finish_after_id = None
+
+        super().destroy()

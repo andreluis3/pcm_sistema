@@ -55,7 +55,7 @@ class DashboardPage(ctk.CTkFrame):
 
         self._build_layout()
         self._start_ui_queue()
-        self._load_demo_data()
+        self.after(100, self._load_demo_data)
 
     # --- Public update API -------------------------------------------------
     def update_esp32_status(self, status: bool) -> None:
@@ -185,30 +185,70 @@ class DashboardPage(ctk.CTkFrame):
         self._ui_queue_after_id = self.after(50, self._process_ui_queue)
 
     def _process_ui_queue(self) -> None:
+
         try:
             if not self.winfo_exists():
                 return
         except Exception:
             return
-        while not self._ui_queue.empty():
-            func, args, kwargs = self._ui_queue.get_nowait()
-            func(*args, **kwargs)
+
         try:
+
+            while not self._ui_queue.empty():
+
+                func, args, kwargs = self._ui_queue.get_nowait()
+
+                try:
+                    func(*args, **kwargs)
+
+                except Exception as e:
+                    print(f"[UI QUEUE ERROR] {e}")
+
+        except Exception:
+            pass
+
+        try:
+
             if not self.winfo_exists():
                 return
+
+            self._ui_queue_after_id = self.after(
+                50,
+                self._process_ui_queue
+            )
+
         except Exception:
-            return
-        self._ui_queue_after_id = self.after(50, self._process_ui_queue)
+            pass
 
     def destroy(self):
 
+        # CANCELA LOOP DA QUEUE
         if self._ui_queue_after_id is not None:
+
             try:
                 self.after_cancel(self._ui_queue_after_id)
             except Exception:
                 pass
 
             self._ui_queue_after_id = None
+
+        # DESTROI CHART TEMPERATURA
+        try:
+            self._temperature_chart.destroy()
+        except Exception:
+            pass
+
+        # DESTROI CHART ENERGIA
+        try:
+            self._energy_chart.destroy()
+        except Exception:
+            pass
+
+        # DESTROI CHART CICLOS
+        try:
+            self._cycle_chart.destroy()
+        except Exception:
+            pass
 
         super().destroy()
 

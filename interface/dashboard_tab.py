@@ -678,33 +678,65 @@ class DashboardTab(ctk.CTkFrame):
         except Exception:
             return
 
-        if self._pcm_state == "liquid":
-            self._anim_phase = (self._anim_phase + 1) % 360
-            offset = 3 * (1 if self._anim_phase % 120 < 60 else -1)
-            self._pcm_canvas.coords(
-                self._pcm_inner,
-                82,
-                60 + offset,
-                198,
-                180 + offset
-            )
-        else:
-            self._pcm_canvas.coords(
-                self._pcm_inner,
-                80,
-                60,
-                200,
-                180
-            )
+        try:
 
-        # CANCELA CALLBACK ANTIGO
+            if self._pcm_state == "liquid":
+
+                self._anim_phase = (
+                    self._anim_phase + 1
+                ) % 360
+
+                offset = 3 * (
+                    1 if self._anim_phase % 120 < 60
+                    else -1
+                )
+
+                self._pcm_canvas.coords(
+                    self._pcm_inner,
+                    82,
+                    60 + offset,
+                    198,
+                    180 + offset
+                )
+
+            else:
+
+                self._pcm_canvas.coords(
+                    self._pcm_inner,
+                    80,
+                    60,
+                    200,
+                    180
+                )
+
+        except Exception as e:
+            print(f"[PCM ANIMATION ERROR] {e}")
+            return
+
+        try:
+
+            if self.winfo_exists():
+
+                self._animate_id = self.after(
+                    120,
+                    self._animate_pcm
+                )
+
+        except Exception:
+            pass
+
+    def destroy(self):
+
         if self._animate_id is not None:
+
             try:
                 self.after_cancel(self._animate_id)
             except Exception:
                 pass
 
-        self._animate_id = self.after(120, self._animate_pcm)
+            self._animate_id = None
+
+        super().destroy()
 
     def _compute_average_series(self) -> list[tuple[float, float]]:
         candidates = [exp for exp in self._experiments if exp.get("temperatura_inicial") is not None and exp.get("temperatura_final") is not None]

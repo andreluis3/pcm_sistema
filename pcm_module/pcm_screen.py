@@ -8,10 +8,15 @@ import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from sensor_module.csv_exporte_service import CSVExportService
+
 from .pcm_model import PCMResult
 from .pcm_repository import PCMRepository
 from .pcm_service import PCMService
+from datetime import datetime
+import threading
 
+from sensor_module.sensor_manager import SensorManager
 
 def calcular_dT_dt(tempo_s: list[float], temperatura_c: list[float]) -> list[float]:
     """Derivada discreta dT/dt usando diferença entre pontos consecutivos (°C/s).
@@ -304,6 +309,17 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.chart_canvases: list[FigureCanvasTkAgg] = []
         self.kpi_values: dict[str, ctk.CTkLabel] = {}
         self.kpi_subvalues: dict[str, ctk.CTkLabel] = {}
+        self.sensor_manager = SensorManager(
+            on_temperature=self.update_sensor_temperature,
+            on_status=self.update_sensor_status,
+            on_log=self.add_sensor_log,
+        )
+        self.sensor_temperatures = []
+        self.sensor_temperature_history = []
+        self.sensor_time_history = []
+
+        self.sensor_current_temp = ctk.StringVar(value="-- °C")
+        self.sensor_status = ctk.StringVar(value="Desconectado")
 
         self._build_layout()
 
@@ -425,6 +441,7 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         self.chart_section = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.chart_section.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 16))
+        self._build_sensor_realtime_panel()
         self.chart_section.grid_columnconfigure(0, weight=1)
 
         self.analysis_frame = ctk.CTkFrame(
@@ -866,3 +883,262 @@ class PCMCalcScreen(ctk.CTkFrame):
 
 # Compatibilidade com integrações anteriores.
 PCMScreen = PCMCalcScreen
+
+
+##Sensor 
+
+def _build_sensor_realtime_panel(self):
+
+        self.sensor_frame = ctk.CTkFrame(
+            self.scroll_frame,
+            fg_color=self.PANEL_COLOR,
+            corner_radius=18,
+            border_width=1,
+            border_color=self.BORDER_COLOR,
+        )
+
+        self.sensor_frame.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=12,
+            pady=(0, 16)
+        )
+
+        self.sensor_frame.grid_columnconfigure(0, weight=1)
+
+        # =====================================================
+        # TITULO
+        # =====================================================
+
+        ctk.CTkLabel(
+            self.sensor_frame,
+            text="Monitoramento Térmico do Sensor",
+            font=("Arial", 22, "bold"),
+            text_color=self.TEXT_PRIMARY,
+        ).grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=22,
+            pady=(20, 10)
+        )
+
+        # =====================================================
+        # TEMPERATURA
+        # =====================================================
+
+        self.sensor_temp_label = ctk.CTkLabel(
+            self.sensor_frame,
+            textvariable=self.sensor_current_temp,
+            font=("Arial", 40, "bold"),
+            text_color="#FF5733",
+        )
+
+        self.sensor_temp_label.grid(
+            row=1,
+            column=0,
+            sticky="w",
+            padx=22,
+        )
+
+        # =====================================================
+        # STATUS
+        # =====================================================
+
+        self.sensor_status_label = ctk.CTkLabel(
+            self.sensor_frame,
+            textvariable=self.sensor_status,
+            font=("Arial", 14),
+            text_color=self.TEXT_SECONDARY,
+        )
+
+        self.sensor_status_label.grid(
+            row=2,
+            column=0,
+            sticky="w",
+            padx=22,
+            pady=(0, 15)
+        )
+
+        # =====================================================
+        # BOTÕES
+        # =====================================================
+
+        buttons = ctk.CTkFrame(
+            self.sensor_frame,
+            fg_color="transparent"
+        )
+
+        buttons.grid(
+            row=3,
+            column=0,
+            sticky="w",
+            padx=22,
+            pady=(0, 15)
+        )
+
+        self.connect_sensor_btn = ctk.CTkButton(
+            buttons,
+            text="Conectar Sensor",
+            command=self.connect_sensor,
+            width=180,
+            height=40,
+        )
+
+        self.connect_sensor_btn.pack(side="left", padx=(0, 10))
+
+        self.export_sensor_btn = ctk.CTkButton(
+            buttons,
+            text="Exportar CSV",
+            command=self.export_sensor_csv,
+            width=180,
+            height=40,
+        )
+
+        self.export_sensor_btn.pack(side="left")
+
+        # =====================================================
+        # GRÁFICO
+        # =====================================================
+
+        self.sensor_figure = Figure(figsize=(11, 4), dpi=100)
+
+        self.sensor_figure.patch.set_facecolor(self.PANEL_COLOR)
+
+        self.sensor_ax = self.sensor_figure.add_subplot(111)
+
+        self.sensor_ax.set_facecolor(self.CARD_COLOR)
+
+        self.sensor_line, = self.sensor_ax.plot(
+            [],
+            [],
+            linewidth=3
+        )
+
+        self.sensor_ax.grid(True, alpha=0.2)
+
+        self.sensor_canvas = FigureCanvasTkAgg(
+            self.sensor_figure,
+            master=self.sensor_frame
+        )
+
+        self.sensor_canvas.get_tk_widget().grid(
+            row=4,
+            column=0,
+            sticky="ew",
+            padx=20,
+            pady=(0, 20)
+        )
+        
+        def connect_sensor(self):
+
+            config = {
+                "port": "COM3",
+                "baudrate": 115200
+            }
+
+            self.sensor_manager.connect(
+                "Serial",
+                config
+            )
+
+
+def update_sensor_temperature(self, value):
+
+        timestamp = datetime.now().strftime("%H:%M:%S")
+
+        self.sensor_current_temp.set(
+            f"{value:.2f} °C"
+        )
+
+        self.sensor_temperature_history.append(value)
+
+        self.sensor_time_history.append(timestamp)
+
+        if len(self.sensor_temperature_history) > 60:
+            self.sensor_temperature_history = self.sensor_temperature_history[-60:]
+            self.sensor_time_history = self.sensor_time_history[-60:]
+
+        self.sensor_line.set_data(
+            range(len(self.sensor_temperature_history)),
+            self.sensor_temperature_history
+        )
+
+        self.sensor_ax.set_xlim(
+            0,
+            max(10, len(self.sensor_temperature_history))
+        )
+
+        self.sensor_ax.set_ylim(
+            min(self.sensor_temperature_history) - 2,
+            max(self.sensor_temperature_history) + 2
+        )
+
+        self.sensor_canvas.draw_idle()
+
+
+def update_sensor_status(self, text, success=False):
+
+        self.sensor_status.set(text)
+
+        color = "#00FF99" if success else "#FF4444"
+
+        self.sensor_status_label.configure(
+            text_color=color
+        )
+
+def export_sensor_csv(self):
+
+    filepath = filedialog.asksaveasfilename(
+        defaultextension=".csv",
+        filetypes=[("CSV", "*.csv")]
+    )
+
+    if not filepath:
+        return
+
+    data = []
+
+    for temp, timestamp in zip(
+        self.sensor_temperature_history,
+        self.sensor_time_history
+    ):
+
+        data.append({
+            "timestamp": timestamp,
+            "temperature": temp,
+            "mode": "Serial"
+        })
+
+    CSVExportService.export(
+        filepath,
+        data
+    )
+
+    messagebox.showinfo(
+        "CSV",
+        "CSV exportado com sucesso."
+    )
+
+
+def add_sensor_log(self, text):
+        print(text)
+        
+# =========================================================
+# SENSOR REALTIME UPDATE
+# =========================================================
+
+def update_sensor_temperature(self, temperature):
+
+    self.sensor_temperatures.append(temperature)
+
+    if len(self.sensor_temperatures) > 300:
+        self.sensor_temperatures = self.sensor_temperatures[-300:]
+
+    self.status_label.configure(
+        text=f"🌡 Sensor online: {temperature:.2f} °C",
+        text_color=self.SUCCESS_COLOR
+    )
+        
+    

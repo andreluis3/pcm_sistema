@@ -1,4 +1,5 @@
 from collections import deque
+from time import time
 from typing import Deque, List
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -10,6 +11,7 @@ class LineChart:
     def __init__(self, parent, titulo: str, cor: str) -> None:
         self._data: Deque[float] = deque(maxlen=80)
         self.figure = Figure(figsize=(5.6, 2.8), dpi=100)
+        self._last_draw_time = 0
         # UI REFATORADA: gráfico integrado no dark mode
         self.figure.patch.set_facecolor(THEME_COLORS["card"])
         self.ax = self.figure.add_subplot(111)
@@ -31,11 +33,41 @@ class LineChart:
     def push(self, valor: float) -> None:
         self._data.append(valor)
 
+
+
     def draw(self) -> None:
-        data: List[float] = list(self._data)
+
+        data = list(self._data)
+
         if not data:
             return
-        self.line.set_data(range(len(data)), data)
-        self.ax.set_xlim(0, max(79, len(data)))
-        self.ax.set_ylim(min(data) - 1, max(data) + 1)
-        self.canvas.draw_idle()
+
+        now = time.time()
+
+        # limita redraw
+        if now - self._last_draw_time < 0.25:
+            return
+
+        self._last_draw_time = now
+
+        try:
+
+            self.line.set_data(
+                range(len(data)),
+                data
+            )
+
+            self.ax.set_xlim(
+                0,
+                max(79, len(data))
+            )
+
+            self.ax.set_ylim(
+                min(data) - 1,
+                max(data) + 1
+            )
+
+            self.canvas.draw_idle()
+
+        except Exception as e:
+            print(f"[CHART DRAW ERROR] {e}")

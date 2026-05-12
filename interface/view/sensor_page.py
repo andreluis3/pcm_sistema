@@ -9,7 +9,7 @@ import customtkinter as ctk
 from sensor_module.serial_connection import SerialConnection
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-
+import matplotlib.pyplot as plt
 from sensor_module.sensor_manager import SensorManager
 from ui_styles import (
     FONT_HEADER,
@@ -57,6 +57,23 @@ class MinimalLineChart:
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=parent)
         self.widget = self.canvas.get_tk_widget()
+        
+    def destroy(self):
+
+        try:
+            self.canvas.get_tk_widget().destroy()
+        except Exception:
+            pass
+
+        try:
+            self.figure.clear()
+        except Exception:
+            pass
+
+        try:
+            plt.close(self.figure)
+        except Exception:
+            pass
 
     def update(self, data: List[float]) -> None:
         if not data:
@@ -132,6 +149,15 @@ class SensorPage(ctk.CTkFrame):
         self._status_label = None
 
         self._build_layout()
+        
+    def destroy(self):
+
+        try:
+            self._chart.destroy()
+        except Exception:
+            pass
+
+        super().destroy()
 
     # =====================================================
     # LAYOUT
@@ -530,7 +556,7 @@ class SensorPage(ctk.CTkFrame):
         self.connect_btn = ctk.CTkButton(
             button_frame,
             text="Conectar",
-            command=self.connect_serial,
+            command=self.connect_sensor,
             **button_style("primary")
         )
 

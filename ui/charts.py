@@ -4,6 +4,7 @@ from typing import Iterable, Sequence
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
 from ui_styles import THEME_COLORS
 
@@ -102,3 +103,20 @@ class BarChart(BaseChart):
         self._bars = self.ax.bar(x, series, color=self._bar_color, alpha=0.85)
         self.ax.set_ylim(0, max(series) + 10)
         self.draw()
+        
+    def destroy(self):
+
+        try:
+            self.canvas.get_tk_widget().destroy()
+        except Exception:
+            pass
+
+        try:
+            self.figure.clear()
+        except Exception:
+            pass
+
+        try:
+            plt.close(self.figure)
+        except Exception:
+            pass
