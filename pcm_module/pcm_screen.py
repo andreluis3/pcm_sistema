@@ -881,13 +881,11 @@ class PCMCalcScreen(ctk.CTkFrame):
         return "\n".join([header_line, separator_line, *data_lines])
 
 
-# Compatibilidade com integrações anteriores.
-PCMScreen = PCMCalcScreen
 
 
-##Sensor 
 
-def _build_sensor_realtime_panel(self):
+    ##Sensor 
+    def _build_sensor_realtime_panel(self) -> None:
 
         self.sensor_frame = ctk.CTkFrame(
             self.scroll_frame,
@@ -986,7 +984,10 @@ def _build_sensor_realtime_panel(self):
             height=40,
         )
 
-        self.connect_sensor_btn.pack(side="left", padx=(0, 10))
+        self.connect_sensor_btn.pack(
+            side="left",
+            padx=(0, 10)
+        )
 
         self.export_sensor_btn = ctk.CTkButton(
             buttons,
@@ -1002,21 +1003,44 @@ def _build_sensor_realtime_panel(self):
         # GRÁFICO
         # =====================================================
 
-        self.sensor_figure = Figure(figsize=(11, 4), dpi=100)
+        self.sensor_figure = Figure(
+            figsize=(11, 4),
+            dpi=100
+        )
 
-        self.sensor_figure.patch.set_facecolor(self.PANEL_COLOR)
+        self.sensor_figure.patch.set_facecolor(
+            self.PANEL_COLOR
+        )
 
         self.sensor_ax = self.sensor_figure.add_subplot(111)
 
-        self.sensor_ax.set_facecolor(self.CARD_COLOR)
+        self.sensor_ax.set_facecolor(
+            self.CARD_COLOR
+        )
 
         self.sensor_line, = self.sensor_ax.plot(
             [],
             [],
-            linewidth=3
+            linewidth=3,
+            color="#FF5733"
         )
 
         self.sensor_ax.grid(True, alpha=0.2)
+
+        self.sensor_ax.tick_params(
+            colors=self.TEXT_SECONDARY
+        )
+
+        self.sensor_ax.spines["bottom"].set_color(
+            self.BORDER_COLOR
+        )
+
+        self.sensor_ax.spines["left"].set_color(
+            self.BORDER_COLOR
+        )
+
+        self.sensor_ax.spines["top"].set_visible(False)
+        self.sensor_ax.spines["right"].set_visible(False)
 
         self.sensor_canvas = FigureCanvasTkAgg(
             self.sensor_figure,
@@ -1030,30 +1054,45 @@ def _build_sensor_realtime_panel(self):
             padx=20,
             pady=(0, 20)
         )
-        
-        def connect_sensor(self):
-
-            config = {
-                "port": "COM3",
-                "baudrate": 115200
-            }
-
-            self.sensor_manager.connect(
-                "Serial",
-                config
-            )
 
 
-def update_sensor_temperature(self, value):
+    # =========================================================
+    # SENSOR CONNECTION
+    # =========================================================
+
+    def connect_sensor(self) -> None:
+        """Conecta no sensor serial."""
+
+        config = {
+            "port": "COM3",
+            "baudrate": 115200
+        }
+
+        self.add_sensor_log(
+            f"Tentando conectar em {config['port']}"
+        )
+
+        self.sensor_manager.connect(
+            "Serial",
+            config
+        )
+
+
+    # =========================================================
+    # SENSOR TEMPERATURE UPDATE
+    # =========================================================
+    def _update_sensor_temperature_ui(self, value: float) -> None:
 
         timestamp = datetime.now().strftime("%H:%M:%S")
 
-        self.sensor_current_temp.set(
-            f"{value:.2f} °C"
+        self.sensor_current_temp.set(f"{value:.2f} °C")
+
+        self.status_label.configure(
+            text=f"🌡 Sensor online: {value:.2f} °C",
+            text_color=self.SUCCESS_COLOR
         )
 
         self.sensor_temperature_history.append(value)
-
         self.sensor_time_history.append(timestamp)
 
         if len(self.sensor_temperature_history) > 60:
@@ -1065,80 +1104,90 @@ def update_sensor_temperature(self, value):
             self.sensor_temperature_history
         )
 
-        self.sensor_ax.set_xlim(
-            0,
-            max(10, len(self.sensor_temperature_history))
-        )
-
-        self.sensor_ax.set_ylim(
-            min(self.sensor_temperature_history) - 2,
-            max(self.sensor_temperature_history) + 2
-        )
+        self.sensor_ax.relim()
+        self.sensor_ax.autoscale_view()
 
         self.sensor_canvas.draw_idle()
 
 
-def update_sensor_status(self, text, success=False):
+    # =========================================================
+    # SENSOR STATUS
+    # =========================================================
+
+    def update_sensor_status(
+        self,
+        text: str,
+        success: bool = False
+    ) -> None:
 
         self.sensor_status.set(text)
 
-        color = "#00FF99" if success else "#FF4444"
+        color = (
+            "#00FF99"
+            if success
+            else "#FF4444"
+        )
 
         self.sensor_status_label.configure(
             text_color=color
         )
 
-def export_sensor_csv(self):
-
-    filepath = filedialog.asksaveasfilename(
-        defaultextension=".csv",
-        filetypes=[("CSV", "*.csv")]
-    )
-
-    if not filepath:
-        return
-
-    data = []
-
-    for temp, timestamp in zip(
-        self.sensor_temperature_history,
-        self.sensor_time_history
-    ):
-
-        data.append({
-            "timestamp": timestamp,
-            "temperature": temp,
-            "mode": "Serial"
-        })
-
-    CSVExportService.export(
-        filepath,
-        data
-    )
-
-    messagebox.showinfo(
-        "CSV",
-        "CSV exportado com sucesso."
-    )
+        self.add_sensor_log(text)
 
 
-def add_sensor_log(self, text):
-        print(text)
+    # =========================================================
+    # EXPORT CSV
+    # =========================================================
+
+    def export_sensor_csv(self) -> None:
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV", "*.csv")]
+        )
+
+        if not filepath:
+            return
+
+        data = [
+
+            {
+                "timestamp": timestamp,
+                "temperature": temp,
+                "mode": "Serial"
+            }
+
+            for temp, timestamp in zip(
+                self.sensor_temperature_history,
+                self.sensor_time_history
+            )
+        ]
+
+        CSVExportService.export(
+            filepath,
+            data
+        )
+
+        messagebox.showinfo(
+            "CSV",
+            "CSV exportado com sucesso."
+        )
+
+        self.add_sensor_log(
+            f"CSV exportado: {filepath}"
+        )
+
+
+    # =========================================================
+    # SENSOR LOG
+    # =========================================================
+
+    def add_sensor_log(
+        self,
+        text: str
+    ) -> None:
+
+        print(f"[SENSOR LOG] {text}")
         
-# =========================================================
-# SENSOR REALTIME UPDATE
-# =========================================================
-
-def update_sensor_temperature(self, temperature):
-
-    self.sensor_temperatures.append(temperature)
-
-    if len(self.sensor_temperatures) > 300:
-        self.sensor_temperatures = self.sensor_temperatures[-300:]
-
-    self.status_label.configure(
-        text=f"🌡 Sensor online: {temperature:.2f} °C",
-        text_color=self.SUCCESS_COLOR
-    )
-        
-    
+# Compatibilidade com integrações anteriores.
+PCMScreen = PCMCalcScreen

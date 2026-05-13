@@ -2,7 +2,7 @@ from sensor_module.serial_connection import SerialConnection
 from sensor_module.simulation_connection import SimulationConnection
 from sensor_module.sensor_buffer import SensorBuffer
 from sensor_module.sensor_repository import SensorRepository
-import serial as pyserial
+import serial
 import serial.tools.list_ports
 
 
@@ -62,9 +62,11 @@ class SensorManager:
 
             self.connection.connect()
 
-            self.status(
-                f"🟢 {mode} conectado"
-            )
+            if self.on_status:
+                self.on_status(
+                    f"🟢 {mode} conectado",
+                    True
+                )
 
         except Exception as e:
 
@@ -73,22 +75,40 @@ class SensorManager:
             )
 
             self.log(
+                f"🔴 Falha conexão: {e}"
+)
+
+            self.log(
                 str(e)
             )
 
     def disconnect(self):
 
+        self.running = False
+
         try:
 
-            if self.connection:
-                self.connection.disconnect()
+            if self.thread and self.thread.is_alive():
+                self.thread.join(timeout=1)
 
-        except:
+        except Exception:
             pass
 
-        self.status(
-            "🔴 Desconectado"
-        )
+        try:
+
+            if self.serial and self.serial.is_open:
+                self.serial.close()
+
+        except Exception:
+            pass
+
+        self.log("Serial desconectada")
+
+        if self.on_status:
+            self.on_status(
+                "🔴 Desconectado",
+                False
+            )
 
     def process_temperature(self, value):
 
@@ -104,9 +124,7 @@ class SensorManager:
             )
 
             if self.on_temperature:
-                self.on_temperature(
-                    temperature
-                )
+                self.on_temperature(temperature) 
 
         except Exception as e:
 
@@ -128,7 +146,7 @@ class SensorManager:
 
         try:
 
-            ports = pyserial.tools.list_ports.comports()
+            ports = serial.tools.list_ports.comports()
 
             return [port.device for port in ports]
 

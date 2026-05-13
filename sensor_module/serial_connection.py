@@ -1,4 +1,5 @@
-import serial as pyserial
+from cv2 import line
+import serial
 import serial.tools.list_ports
 import threading
 import time
@@ -84,8 +85,8 @@ class SerialConnection:
 
         try:
 
-            if self.serial:
-                self.serial.close()
+            if self.serial and self.serial.is_open:
+                 self.serial.close()
 
         except:
             pass
@@ -104,7 +105,7 @@ class SerialConnection:
 
             try:
 
-                if self.serial.in_waiting:
+                if self.serial and self.serial.in_waiting:
 
                     line = self.serial.readline().decode(
                         "utf-8",
@@ -113,9 +114,8 @@ class SerialConnection:
 
                     if line:
 
-                        self.log(
-                            f"RX -> {line}"
-                        )
+                        if self.on_log and time.time() % 2 < 0.1:
+                            self.log(f"RX -> {line}")
 
                         try:
 
@@ -124,22 +124,19 @@ class SerialConnection:
                             if self.on_data:
                                 self.on_data(value)
 
-                        except:
+                        except ValueError:
 
-                            self.log(
-                                f"Dado inválido: {line}"
-                            )
+                            self.log(f"Dado inválido: {line}")
 
                 time.sleep(0.05)
 
             except Exception as e:
 
-                self.log(
-                    f"Erro leitura serial: {e}"
-                )
+                self.log(f"Erro leitura serial: {e}")
+
+                self.running = False
 
                 break
-
     # =====================================================
     # LOG
     # =====================================================
