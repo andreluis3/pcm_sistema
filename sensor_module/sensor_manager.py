@@ -1,5 +1,6 @@
 from sensor_module.serial_connection import SerialConnection
 from sensor_module.simulation_connection import SimulationConnection
+from sensor_module.api_sensor_driver import APISensorDriver
 from sensor_module.sensor_buffer import SensorBuffer
 from sensor_module.sensor_repository import SensorRepository
 import serial
@@ -25,6 +26,11 @@ class SensorManager:
         self.repository = SensorRepository()
 
         self.mode = None
+        
+        # ✅ CORREÇÃO: Inicializar atributos que são usados em disconnect()
+        self.running = False
+        self.thread = None
+        self.serial = None
 
     def connect(self, mode, config=None):
 
@@ -41,6 +47,19 @@ class SensorManager:
                 self.connection = SerialConnection(
                     port=config.get("port", "COM3"),
                     baudrate=config.get("baudrate", 115200),
+                    on_data=self.process_temperature,
+                    on_log=self.log
+                )
+
+            elif mode == "API":
+                
+                # ✅ NOVO: Integração com APISensorDriver
+                self.connection = APISensorDriver(
+                    host=config.get("host", "192.168.200.227"),
+                    port=config.get("port", 8080),
+                    endpoint=config.get("endpoint", "/sensor/temperature"),
+                    poll_interval=config.get("poll_interval", 2.0),
+                    timeout=config.get("timeout", 5.0),
                     on_data=self.process_temperature,
                     on_log=self.log
                 )
@@ -70,9 +89,12 @@ class SensorManager:
 
         except Exception as e:
 
-            self.status(
-                "🔴 Falha conexão"
-            )
+            # ✅ CORREÇÃO: Chamar self.on_status() em vez de self.status()
+            if self.on_status:
+                self.on_status(
+                    "🔴 Falha conexão",
+                    False
+                )
 
             self.log(
                 f"🔴 Falha conexão: {e}"
@@ -86,6 +108,16 @@ class SensorManager:
 
         self.running = False
 
+        # ✅ CORREÇÃO: Desconectar a conexão atual (seja qual for)
+        try:
+
+            if self.connection:
+                self.connection.disconnect()
+
+        except Exception as e:
+            self.log(f"Erro ao desconectar: {e}")
+
+        # ✅ Limpeza de atributos legacy (compatibilidade)
         try:
 
             if self.thread and self.thread.is_alive():
@@ -102,7 +134,7 @@ class SensorManager:
         except Exception:
             pass
 
-        self.log("Serial desconectada")
+        self.log("🔴 Conexão encerrada")
 
         if self.on_status:
             self.on_status(
@@ -131,11 +163,6 @@ class SensorManager:
             self.log(
                 f"Erro processamento: {e}"
             )
-
-    def status(self, text):
-
-        if self.on_status:
-            self.on_status(text)
 
     def log(self, text):
 
