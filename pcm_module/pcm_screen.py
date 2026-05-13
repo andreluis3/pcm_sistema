@@ -8,15 +8,10 @@ import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from sensor_module.csv_exporte_service import CSVExportService
-
 from .pcm_model import PCMResult
 from .pcm_repository import PCMRepository
 from .pcm_service import PCMService
-from datetime import datetime
-import threading
 
-from sensor_module.sensor_manager import SensorManager
 
 def calcular_dT_dt(tempo_s: list[float], temperatura_c: list[float]) -> list[float]:
     """Derivada discreta dT/dt usando diferença entre pontos consecutivos (°C/s).
@@ -170,12 +165,11 @@ def calcular_metricas_experimento(
     heating_rate_c_por_s = (delta_t / duracao_s) if duracao_s > 0 else None
     heating_rate_c_por_min = (heating_rate_c_por_s * 60.0) if heating_rate_c_por_s is not None else None
 
-        # ---------------------------------------------------------
+    # ---------------------------------------------------------
     # ENERGIA REALMENTE ABSORVIDA PELO PCM
     # ---------------------------------------------------------
 
-    CALOR_LATENTE_PCM = 180.0  # J/g
-    # ajuste conforme seu material real
+    CALOR_LATENTE_PCM = 180.0  # J/g  — ajuste conforme seu material real
 
     energia_total = float(result.energia_total)
 
@@ -206,33 +200,33 @@ def calcular_metricas_experimento(
     if energia_total > 0:
         erro_percentual = (energia_perdida / energia_total) * 100.0
 
-        # Tempo até temperatura alvo.
-        tempo_ate_alvo_s = None
-        for t, temp in zip(tempo_s, temperatura_c):
-            if float(temp) >= float(temperatura_alvo_c):
-                tempo_ate_alvo_s = float(t)
-                break
+    # Tempo até temperatura alvo.
+    tempo_ate_alvo_s = None
+    for t, temp in zip(tempo_s, temperatura_c):
+        if float(temp) >= float(temperatura_alvo_c):
+            tempo_ate_alvo_s = float(t)
+            break
 
-        tempo_atuacao_pcm_s = _tempo_na_faixa_pcm_linear(
-            tempo_s,
-            temperatura_c,
-            pcm_min_c=float(pcm_min_c),
-            pcm_max_c=float(pcm_max_c),
-        )
+    tempo_atuacao_pcm_s = _tempo_na_faixa_pcm_linear(
+        tempo_s,
+        temperatura_c,
+        pcm_min_c=float(pcm_min_c),
+        pcm_max_c=float(pcm_max_c),
+    )
 
-        return {
-            "duracao_s": duracao_s,
-            "duracao_min": duracao_min,
-            "pico_temp_c": pico_temp,
-            "tempo_pico_s": tempo_pico_s,
-            "delta_t_c": delta_t,
-            "taxa_aquecimento_c_min": heating_rate_c_por_min,
-            "eficiencia_percent": eficiencia,
-            "erro_percentual": erro_percentual,
-            "energia_ideal_j": float(result.energia_teorica),
-            "tempo_ate_55c_s": tempo_ate_alvo_s,
-            "tempo_atuacao_pcm_s": tempo_atuacao_pcm_s,
-        }
+    return {
+        "duracao_s": duracao_s,
+        "duracao_min": duracao_min,
+        "pico_temp_c": pico_temp,
+        "tempo_pico_s": tempo_pico_s,
+        "delta_t_c": delta_t,
+        "taxa_aquecimento_c_min": heating_rate_c_por_min,
+        "eficiencia_percent": eficiencia,
+        "erro_percentual": erro_percentual,
+        "energia_ideal_j": float(result.energia_teorica),
+        "tempo_ate_55c_s": tempo_ate_alvo_s,
+        "tempo_atuacao_pcm_s": tempo_atuacao_pcm_s,
+    }
 
 
 def _formatar_tempo_min_seg(tempo_s: float | None) -> str:
@@ -309,17 +303,6 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.chart_canvases: list[FigureCanvasTkAgg] = []
         self.kpi_values: dict[str, ctk.CTkLabel] = {}
         self.kpi_subvalues: dict[str, ctk.CTkLabel] = {}
-        self.sensor_manager = SensorManager(
-            on_temperature=self.update_sensor_temperature,
-            on_status=self.update_sensor_status,
-            on_log=self.add_sensor_log,
-        )
-        self.sensor_temperatures = []
-        self.sensor_temperature_history = []
-        self.sensor_time_history = []
-
-        self.sensor_current_temp = ctk.StringVar(value="-- °C")
-        self.sensor_status = ctk.StringVar(value="Desconectado")
 
         self._build_layout()
 
@@ -336,6 +319,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.scroll_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         self.scroll_frame.grid_columnconfigure(0, weight=1)
 
+        # ── Header ────────────────────────────────────────────────────────────
         header = ctk.CTkFrame(self.scroll_frame, fg_color=self.PANEL_COLOR, corner_radius=18)
         header.grid(row=0, column=0, sticky="ew", padx=12, pady=(0, 16))
         header.grid_columnconfigure(0, weight=1)
@@ -382,6 +366,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
         self.status_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=24, pady=(0, 20))
 
+        # ── KPIs ──────────────────────────────────────────────────────────────
         self.kpi_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.kpi_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 16))
         for column in range(4):
@@ -439,11 +424,12 @@ class PCMCalcScreen(ctk.CTkFrame):
         for index, kpi_def in enumerate(self._kpi_defs):
             self._create_kpi_card(index, kpi_def["key"], kpi_def["default"], tooltip=kpi_def["tooltip"])
 
+        # ── Chart section ─────────────────────────────────────────────────────
         self.chart_section = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.chart_section.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 16))
-        self._build_sensor_realtime_panel()
         self.chart_section.grid_columnconfigure(0, weight=1)
 
+        # ── Analysis box ──────────────────────────────────────────────────────
         self.analysis_frame = ctk.CTkFrame(
             self.scroll_frame,
             fg_color=self.PANEL_COLOR,
@@ -473,6 +459,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
         self.analysis_box.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 18))
 
+        # ── CSV preview box ───────────────────────────────────────────────────
         self.log_frame = ctk.CTkFrame(
             self.scroll_frame,
             fg_color=self.PANEL_COLOR,
@@ -503,6 +490,8 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.log_box.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 18))
 
         self._set_initial_content()
+
+    # ── KPI card ──────────────────────────────────────────────────────────────
 
     def _create_kpi_card(self, index: int, title: str, default_value: str, *, tooltip: str) -> None:
         card = ctk.CTkFrame(
@@ -546,6 +535,8 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
         self.kpi_subvalues[title] = sub_label
 
+    # ── Initial state ─────────────────────────────────────────────────────────
+
     def _set_initial_content(self) -> None:
         self._write_text(
             self.analysis_box,
@@ -585,6 +576,8 @@ class PCMCalcScreen(ctk.CTkFrame):
         canvas.draw_idle()
         self.chart_canvases.append(canvas)
 
+    # ── CSV import ────────────────────────────────────────────────────────────
+
     def import_csv(self) -> None:
         initial_path = "/home/andre/pc_temperature"
 
@@ -614,6 +607,8 @@ class PCMCalcScreen(ctk.CTkFrame):
             text_color=self.SUCCESS_COLOR,
         )
         self._update_dashboard(result)
+
+    # ── Dashboard update ──────────────────────────────────────────────────────
 
     def _update_dashboard(self, result: PCMResult) -> None:
         metricas = calcular_metricas_experimento(result)
@@ -662,6 +657,8 @@ class PCMCalcScreen(ctk.CTkFrame):
         self._write_text(self.log_box, self._format_preview_table(result.csv_preview))
         self._render_charts(result)
 
+    # ── Charts ────────────────────────────────────────────────────────────────
+
     def _render_charts(self, result: PCMResult) -> None:
         self._clear_charts()
 
@@ -680,6 +677,7 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         time_values = result.tempo_s
         temps = result.temperatura_c
+
         if not time_values or not temps:
             ax_temp.set_title(
                 "Temperatura × Tempo — Resposta térmica do PCM",
@@ -699,10 +697,8 @@ class PCMCalcScreen(ctk.CTkFrame):
                 color=self.TEXT_SECONDARY,
             )
             figure.subplots_adjust(left=0.08, right=0.95, top=0.95, bottom=0.08)
-
             canvas = FigureCanvasTkAgg(figure, master=self.chart_section)
-            widget = canvas.get_tk_widget()
-            widget.grid(row=0, column=0, sticky="nsew")
+            canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
             canvas.draw_idle()
             self.chart_canvases.append(canvas)
             return
@@ -710,12 +706,8 @@ class PCMCalcScreen(ctk.CTkFrame):
         metricas = calcular_metricas_experimento(result)
         tempo_55 = metricas["tempo_ate_55c_s"]
         tempo_pico = metricas["tempo_pico_s"]
-
-        # --- Gráfico principal: Temperatura vs Tempo (MELHORADO) --------
         min_temp = float(min(temps))
-        max_temp = float(max(temps))
-        
-        # Título e subtítulo científicos
+
         ax_temp.set_title(
             "Temperatura × Tempo — Resposta térmica do PCM",
             color=self.TEXT_PRIMARY,
@@ -723,40 +715,17 @@ class PCMCalcScreen(ctk.CTkFrame):
             fontweight="bold",
             pad=16,
         )
-        
-        # Faixa de atuação do PCM (50°C a 60°C) - verde transparente
-        ax_temp.axhspan(
-            50.0,
-            60.0,
-            color="#00FF96",
-            alpha=0.12,
-            label="Faixa PCM 50–60°C",
-            zorder=1
-        )
 
-        # Preenchimento sob a curva de temperatura (gradiente suave)
-        ax_temp.fill_between(
-            time_values,
-            temps,
-            min_temp,
-            color="#FF5733",
-            alpha=0.15,
-            label="Área absorvida",
-            zorder=2
-        )
+        # Faixa de atuação do PCM (50–60°C)
+        ax_temp.axhspan(50.0, 60.0, color="#00FF96", alpha=0.12, label="Faixa PCM 50–60°C", zorder=1)
 
-        # Linha principal colorida (vermelho/laranja)
-        ax_temp.plot(
-            time_values,
-            temps,
-            color="#FF5733",
-            linewidth=3.0,
-            alpha=0.95,
-            label="Temperatura",
-            zorder=4
-        )
-        
-        # Média móvel (azul claro)
+        # Preenchimento sob a curva
+        ax_temp.fill_between(time_values, temps, min_temp, color="#FF5733", alpha=0.15, label="Área absorvida", zorder=2)
+
+        # Linha principal
+        ax_temp.plot(time_values, temps, color="#FF5733", linewidth=3.0, alpha=0.95, label="Temperatura", zorder=4)
+
+        # Média móvel
         if result.temperatura_media_movel:
             ax_temp.plot(
                 time_values,
@@ -766,11 +735,10 @@ class PCMCalcScreen(ctk.CTkFrame):
                 linestyle="--",
                 alpha=0.85,
                 label="Média móvel (7 pontos)",
-                zorder=3
+                zorder=3,
             )
 
-        # Marcadores científicos
-        # 1. Pico de temperatura
+        # Pico
         ax_temp.scatter(
             [result.tempo_pico_temperatura],
             [result.pico_temperatura],
@@ -780,10 +748,10 @@ class PCMCalcScreen(ctk.CTkFrame):
             s=150,
             zorder=6,
             label=f"Pico: {result.pico_temperatura:.2f}°C",
-            marker="*"
+            marker="*",
         )
-        
-        # 2. Linha vertical no tempo até 55°C
+
+        # Linha vertical — tempo até 55°C
         if tempo_55 is not None:
             ax_temp.axvline(
                 tempo_55,
@@ -791,10 +759,10 @@ class PCMCalcScreen(ctk.CTkFrame):
                 linestyle=":",
                 linewidth=2.0,
                 alpha=0.8,
-                label=f"Tempo até 55°C: {_formatar_tempo_min_seg(tempo_55)}"
+                label=f"Tempo até 55°C: {_formatar_tempo_min_seg(tempo_55)}",
             )
-        
-        # 3. Linha vertical no pico
+
+        # Linha vertical — tempo do pico
         if tempo_pico is not None:
             ax_temp.axvline(
                 tempo_pico,
@@ -802,16 +770,14 @@ class PCMCalcScreen(ctk.CTkFrame):
                 linestyle=":",
                 linewidth=2.0,
                 alpha=0.8,
-                label=f"Tempo do pico: {_formatar_tempo_min_seg(tempo_pico)}"
+                label=f"Tempo do pico: {_formatar_tempo_min_seg(tempo_pico)}",
             )
 
-        # Rótulos de eixo
         ax_temp.set_xlabel("Tempo (s)", color=self.TEXT_PRIMARY, fontsize=12, fontweight="bold")
         ax_temp.set_ylabel("Temperatura (°C)", color=self.TEXT_PRIMARY, fontsize=12, fontweight="bold")
 
-        # Informações na área superior esquerda
-        delta_t = metricas['delta_t_c']
-        tempo_atuacao_min = float(metricas['tempo_atuacao_pcm_s'] or 0.0) / 60.0
+        delta_t = metricas["delta_t_c"]
+        tempo_atuacao_min = float(metricas["tempo_atuacao_pcm_s"] or 0.0) / 60.0
         info_text = f"ΔT = {delta_t:.2f}°C  |  Atuação PCM: {tempo_atuacao_min:.1f} min"
         ax_temp.text(
             0.02,
@@ -821,17 +787,11 @@ class PCMCalcScreen(ctk.CTkFrame):
             color="#E5E7EB",
             fontsize=11,
             fontweight="bold",
-            bbox=dict(
-                boxstyle="round,pad=0.5",
-                facecolor=self.CARD_COLOR,
-                edgecolor=self.BORDER_COLOR,
-                alpha=0.8
-            ),
+            bbox=dict(boxstyle="round,pad=0.5", facecolor=self.CARD_COLOR, edgecolor=self.BORDER_COLOR, alpha=0.8),
             verticalalignment="top",
-            zorder=10
+            zorder=10,
         )
 
-        # Legenda melhorada
         ax_temp.legend(
             loc="lower right",
             fontsize=10,
@@ -839,14 +799,13 @@ class PCMCalcScreen(ctk.CTkFrame):
             facecolor=self.CARD_COLOR,
             edgecolor=self.BORDER_COLOR,
             labelcolor=self.TEXT_PRIMARY,
-            frameon=True
+            frameon=True,
         )
 
         figure.subplots_adjust(left=0.08, right=0.95, top=0.93, bottom=0.1)
 
         canvas = FigureCanvasTkAgg(figure, master=self.chart_section)
-        widget = canvas.get_tk_widget()
-        widget.grid(row=0, column=0, sticky="nsew")
+        canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
         canvas.draw_idle()
         self.chart_canvases.append(canvas)
 
@@ -854,6 +813,8 @@ class PCMCalcScreen(ctk.CTkFrame):
         for canvas in self.chart_canvases:
             canvas.get_tk_widget().destroy()
         self.chart_canvases.clear()
+
+    # ── Utilities ─────────────────────────────────────────────────────────────
 
     def _write_text(self, textbox: ctk.CTkTextbox, content: str) -> None:
         textbox.configure(state="normal")
@@ -881,313 +842,5 @@ class PCMCalcScreen(ctk.CTkFrame):
         return "\n".join([header_line, separator_line, *data_lines])
 
 
-
-
-
-    ##Sensor 
-    def _build_sensor_realtime_panel(self) -> None:
-
-        self.sensor_frame = ctk.CTkFrame(
-            self.scroll_frame,
-            fg_color=self.PANEL_COLOR,
-            corner_radius=18,
-            border_width=1,
-            border_color=self.BORDER_COLOR,
-        )
-
-        self.sensor_frame.grid(
-            row=3,
-            column=0,
-            sticky="ew",
-            padx=12,
-            pady=(0, 16)
-        )
-
-        self.sensor_frame.grid_columnconfigure(0, weight=1)
-
-        # =====================================================
-        # TITULO
-        # =====================================================
-
-        ctk.CTkLabel(
-            self.sensor_frame,
-            text="Monitoramento Térmico do Sensor",
-            font=("Arial", 22, "bold"),
-            text_color=self.TEXT_PRIMARY,
-        ).grid(
-            row=0,
-            column=0,
-            sticky="w",
-            padx=22,
-            pady=(20, 10)
-        )
-
-        # =====================================================
-        # TEMPERATURA
-        # =====================================================
-
-        self.sensor_temp_label = ctk.CTkLabel(
-            self.sensor_frame,
-            textvariable=self.sensor_current_temp,
-            font=("Arial", 40, "bold"),
-            text_color="#FF5733",
-        )
-
-        self.sensor_temp_label.grid(
-            row=1,
-            column=0,
-            sticky="w",
-            padx=22,
-        )
-
-        # =====================================================
-        # STATUS
-        # =====================================================
-
-        self.sensor_status_label = ctk.CTkLabel(
-            self.sensor_frame,
-            textvariable=self.sensor_status,
-            font=("Arial", 14),
-            text_color=self.TEXT_SECONDARY,
-        )
-
-        self.sensor_status_label.grid(
-            row=2,
-            column=0,
-            sticky="w",
-            padx=22,
-            pady=(0, 15)
-        )
-
-        # =====================================================
-        # BOTÕES
-        # =====================================================
-
-        buttons = ctk.CTkFrame(
-            self.sensor_frame,
-            fg_color="transparent"
-        )
-
-        buttons.grid(
-            row=3,
-            column=0,
-            sticky="w",
-            padx=22,
-            pady=(0, 15)
-        )
-
-        self.connect_sensor_btn = ctk.CTkButton(
-            buttons,
-            text="Conectar Sensor",
-            command=self.connect_sensor,
-            width=180,
-            height=40,
-        )
-
-        self.connect_sensor_btn.pack(
-            side="left",
-            padx=(0, 10)
-        )
-
-        self.export_sensor_btn = ctk.CTkButton(
-            buttons,
-            text="Exportar CSV",
-            command=self.export_sensor_csv,
-            width=180,
-            height=40,
-        )
-
-        self.export_sensor_btn.pack(side="left")
-
-        # =====================================================
-        # GRÁFICO
-        # =====================================================
-
-        self.sensor_figure = Figure(
-            figsize=(11, 4),
-            dpi=100
-        )
-
-        self.sensor_figure.patch.set_facecolor(
-            self.PANEL_COLOR
-        )
-
-        self.sensor_ax = self.sensor_figure.add_subplot(111)
-
-        self.sensor_ax.set_facecolor(
-            self.CARD_COLOR
-        )
-
-        self.sensor_line, = self.sensor_ax.plot(
-            [],
-            [],
-            linewidth=3,
-            color="#FF5733"
-        )
-
-        self.sensor_ax.grid(True, alpha=0.2)
-
-        self.sensor_ax.tick_params(
-            colors=self.TEXT_SECONDARY
-        )
-
-        self.sensor_ax.spines["bottom"].set_color(
-            self.BORDER_COLOR
-        )
-
-        self.sensor_ax.spines["left"].set_color(
-            self.BORDER_COLOR
-        )
-
-        self.sensor_ax.spines["top"].set_visible(False)
-        self.sensor_ax.spines["right"].set_visible(False)
-
-        self.sensor_canvas = FigureCanvasTkAgg(
-            self.sensor_figure,
-            master=self.sensor_frame
-        )
-
-        self.sensor_canvas.get_tk_widget().grid(
-            row=4,
-            column=0,
-            sticky="ew",
-            padx=20,
-            pady=(0, 20)
-        )
-
-
-    # =========================================================
-    # SENSOR CONNECTION
-    # =========================================================
-
-    def connect_sensor(self) -> None:
-        """Conecta no sensor serial."""
-
-        config = {
-            "port": "COM3",
-            "baudrate": 115200
-        }
-
-        self.add_sensor_log(
-            f"Tentando conectar em {config['port']}"
-        )
-
-        self.sensor_manager.connect(
-            "Serial",
-            config
-        )
-
-
-    # =========================================================
-    # SENSOR TEMPERATURE UPDATE
-    # =========================================================
-    def _update_sensor_temperature_ui(self, value: float) -> None:
-
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        self.sensor_current_temp.set(f"{value:.2f} °C")
-
-        self.status_label.configure(
-            text=f"🌡 Sensor online: {value:.2f} °C",
-            text_color=self.SUCCESS_COLOR
-        )
-
-        self.sensor_temperature_history.append(value)
-        self.sensor_time_history.append(timestamp)
-
-        if len(self.sensor_temperature_history) > 60:
-            self.sensor_temperature_history = self.sensor_temperature_history[-60:]
-            self.sensor_time_history = self.sensor_time_history[-60:]
-
-        self.sensor_line.set_data(
-            range(len(self.sensor_temperature_history)),
-            self.sensor_temperature_history
-        )
-
-        self.sensor_ax.relim()
-        self.sensor_ax.autoscale_view()
-
-        self.sensor_canvas.draw_idle()
-
-
-    # =========================================================
-    # SENSOR STATUS
-    # =========================================================
-
-    def update_sensor_status(
-        self,
-        text: str,
-        success: bool = False
-    ) -> None:
-
-        self.sensor_status.set(text)
-
-        color = (
-            "#00FF99"
-            if success
-            else "#FF4444"
-        )
-
-        self.sensor_status_label.configure(
-            text_color=color
-        )
-
-        self.add_sensor_log(text)
-
-
-    # =========================================================
-    # EXPORT CSV
-    # =========================================================
-
-    def export_sensor_csv(self) -> None:
-
-        filepath = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV", "*.csv")]
-        )
-
-        if not filepath:
-            return
-
-        data = [
-
-            {
-                "timestamp": timestamp,
-                "temperature": temp,
-                "mode": "Serial"
-            }
-
-            for temp, timestamp in zip(
-                self.sensor_temperature_history,
-                self.sensor_time_history
-            )
-        ]
-
-        CSVExportService.export(
-            filepath,
-            data
-        )
-
-        messagebox.showinfo(
-            "CSV",
-            "CSV exportado com sucesso."
-        )
-
-        self.add_sensor_log(
-            f"CSV exportado: {filepath}"
-        )
-
-
-    # =========================================================
-    # SENSOR LOG
-    # =========================================================
-
-    def add_sensor_log(
-        self,
-        text: str
-    ) -> None:
-
-        print(f"[SENSOR LOG] {text}")
-        
 # Compatibilidade com integrações anteriores.
 PCMScreen = PCMCalcScreen
