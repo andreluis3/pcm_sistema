@@ -3,6 +3,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from typing import List
+from queue import Queue
 
 import customtkinter as ctk
 
@@ -54,7 +55,7 @@ class MinimalLineChart:
             linewidth=2.5
         )
 
-
+        self.log_queue = Queue()
         self.canvas = FigureCanvasTkAgg(self.figure, master=parent)
         self.widget = self.canvas.get_tk_widget()
         
@@ -1050,6 +1051,7 @@ class SensorPage(ctk.CTkFrame):
             fg_color=COLORS["card"],
             text_color=COLORS["text_primary"]
         )
+        self.log_textbox.configure(state="disabled")
 
         self.log_textbox.pack(
             fill="both",
@@ -1136,17 +1138,28 @@ class SensorPage(ctk.CTkFrame):
     # =====================================================
 
     def add_log(self, message):
+        """Adiciona log de forma segura (thread-safe)."""
 
-        timestamp = datetime.now().strftime(
-            "%H:%M:%S"
-        )
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        line = f"[{timestamp}] {message}\n"
 
-        self.log_textbox.insert(
-            "end",
-            f"[{timestamp}] {message}\n"
-        )
+        self.log_queue.put(line)
+        self._process_log_queue()
+        
+    def _process_log_queue(self):
+        """Processa fila de logs sem travar UI."""
 
-        self.log_textbox.see("end")
+        try:
+            while not self.log_queue.empty():
+                line = self.log_queue.get_nowait()
+
+                self.log_textbox.configure(state="normal")
+                self.log_textbox.insert("end", line)
+                self.log_textbox.see("end")
+                self.log_textbox.configure(state="disabled")
+
+        except Exception:
+            pass
 
     def on_connection_mode_changed(self, mode):
         """

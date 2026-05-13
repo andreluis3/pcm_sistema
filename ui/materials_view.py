@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import webbrowser
-
+import webbrowser
+from utils.paths import resource_path
 from ui_styles import (
     THEME_COLORS,
     FONT_HEADER,
@@ -15,6 +16,7 @@ from ui_styles import (
     button_style,
 )
 
+pdf_path = resource_path("assets/cera_coco.pdf")
 
 class _InfoCard(ctk.CTkFrame):
     def __init__(self, parent, title: str, value: str, description: str) -> None:
@@ -307,7 +309,7 @@ class MaterialsView(ctk.CTkFrame):
         button = ctk.CTkButton(
             frame,
             text="Abrir FDS do fabricante",
-            command=lambda: webbrowser.open("storage/fds/cera_coco.pdf"),
+            command=lambda: webbrowser.open(pdf_path)
             **button_style("neutral"),
         )
 

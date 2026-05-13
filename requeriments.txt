@@ -1,0 +1,9 @@
+pyserial
+customtkinter
+matplotlib
+numpy
+pandas
+requests
+fastapi
+uvicorn[standard]
+python-dotenv
