@@ -38,7 +38,7 @@ EXPECTED_THERMAL_CALC_COLUMNS: tuple[str, ...] = (
 class DatabaseManager:
     def __init__(self, db_path: Path | str | None = None) -> None:
         self.db_path = Path(db_path) if db_path is not None else DB_PATH
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
 

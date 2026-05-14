@@ -3,6 +3,7 @@ from __future__ import annotations
 import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from tkinter import Canvas, TclError, ttk
 from services.dashboard_metrics import calcular_metricas_globais
 
@@ -32,11 +33,12 @@ class DashboardTab(ctk.CTkFrame):
 
         self.db = db_manager or HybridRepository()
         self._experiments: list[dict] = []
-        self._experiment_map: dict[str, dict] = {}
+        self._experiment_map: dict[str, dict | None] = {}
         self._selected_experiment: dict | None = None
         self._avg_series: list[tuple[float, float]] | None = None
         self._phase_index: int | None = None
 
+        self._ui_queue = None # Será inicializado se necessário para thread-safety
         self._sensor_status_var = ctk.StringVar(value="Sensor: Offline")
         self._mqtt_status_var = ctk.StringVar(value="MQTT: Desconectado")
         self._current_experiment_var = ctk.StringVar(value="Experimento: --")
@@ -49,72 +51,101 @@ class DashboardTab(ctk.CTkFrame):
 
         self._build_layout()
         self.load_dashboard_data()
+        
+        # Iniciar processamento da fila de UI, se houver
+        # if self._ui_queue:
+        #    self.after(50, self._process_ui_queue)
 
     # --- Data -------------------------------------------------------------
     def load_dashboard_data(self) -> None:
-        if not self.winfo_exists():
-            return
-        self._experiments = [dict(r) for r in self.db.list_experiments()]
-        self._refresh_experiment_selector()
-        self.update_dashboard()
-        self._refresh_statistics()
-        
-    def _refresh_experiment_selector(self):
-
-        if not self.winfo_exists():
-            return
-
-        if not hasattr(self, "_experiment_combo"):
-            return
-
-        if not self._experiment_combo.winfo_exists():
-            return
-
         try:
-            experiments = self.db.list_experiments()
-
-            options = [
-                f"#{exp['id']} - {exp.get('material', 'Sem nome')}"
-                for exp in experiments
+            if not self.winfo_exists():
+                return
+            self._experiments = [
+                dict(r) for r in self.db.list_experiments()
             ]
-
-            self._experiment_combo.configure(values=options)
+            self._refresh_experiment_selector()
+            self.update_dashboard()
+            
+            # Se houver um experimento selecionado, recarrega as métricas
+            # Caso contrário, _refresh_statistics() será chamado no update_dashboard
+            if self._selected_experiment:
+                self._set_metrics_from_experiment(self._selected_experiment.get("id"))
+            self._refresh_statistics()
 
         except Exception as e:
-            print(f"Erro ao atualizar combobox: {e}")
-
+            print(f"[LOAD DASHBOARD ERROR] {e}")
+    
     def update_dashboard(self) -> None:
-        exp = self._selected_experiment
-        if not exp:
+
+        try:
+
+            if not self.winfo_exists():
+                return
+
+            exp = self._selected_experiment
+
+            if not exp:
+                self._set_metrics(None, None, None, None)
+                self._set_experiment_info({})
+                self._canvas_temp_var.set("-- °C")
+                self._draw_pcm_state("solid")
+                self.plot_temperature_graph([])
+                return
+
+            exp_id = exp.get("id")
+
+            self._set_metrics_from_experiment(exp_id)
+
+            self._set_experiment_info(exp)
+
+            series = self._build_temperature_series(exp)
+
+            self._phase_index = self._detect_phase_change(series)
+
+            self.plot_temperature_graph(series)
+
+            current_temp = (
+                exp.get("temperatura_final")
+                or temp_media
+            )
+
+            if current_temp is not None:
+
+                self._canvas_temp_var.set(
+                    f"{current_temp:.1f} °C"
+                )
+
+                self._draw_pcm_state(
+                    self._infer_pcm_state(
+                        exp,
+                        current_temp
+                    )
+                )
+
+            else:
+
+                self._canvas_temp_var.set("-- °C")
+                self._draw_pcm_state("solid")
+
+            self._update_thermo_cards(exp_id)
+
+        except Exception as e:
+            print(f"[DASHBOARD UPDATE ERROR] {e}")
+
+    def _set_metrics_from_experiment(self, exp_id: int | None) -> None:
+        """Busca e define as métricas para um experimento específico."""
+        if exp_id is None:
             self._set_metrics(None, None, None, None)
-            self._set_experiment_info({})
-            self._canvas_temp_var.set("-- °C")
-            self._draw_pcm_state("solid")
-            self.plot_temperature_graph([])
             return
 
-        exp_id = exp.get("id")
-        temp_media = self.db.get_temperatura_media(exp_id) if exp_id else None
-        delta_t = self.db.get_delta_t(exp_id) if exp_id else None
-        heating_rate = self.db.get_heating_rate(exp_id) if exp_id else None
-        energia = self.db.get_energia_armazenada(exp_id) if exp_id else None
+        # Otimização: buscar todos os dados de uma vez ou cachear
+        temp_media = self.db.get_temperatura_media(exp_id)
+        delta_t = self.db.get_delta_t(exp_id)
+        heating_rate = self.db.get_heating_rate(exp_id)
+        energia = self.db.get_energia_armazenada(exp_id)
 
         self._set_metrics(temp_media, delta_t, heating_rate, energia)
-        self._set_experiment_info(exp)
-
-        series = self._build_temperature_series(exp)
-        self._phase_index = self._detect_phase_change(series)
-        self.plot_temperature_graph(series)
-
-        current_temp = exp.get("temperatura_final") or temp_media
-        if current_temp is not None:
-            self._canvas_temp_var.set(f"{current_temp:.1f} °C")
-            self._draw_pcm_state(self._infer_pcm_state(exp, current_temp))
-        else:
-            self._canvas_temp_var.set("-- °C")
-            self._draw_pcm_state("solid")
-
-        self._update_thermo_cards(exp_id)
 
     # --- Métricas ---------------------------------------------------------
     def _set_metrics(
@@ -130,38 +161,80 @@ class DashboardTab(ctk.CTkFrame):
         self._metric_energy.configure(text=f"{energia:.0f} J" if energia is not None else "--")
 
     # --- Gráfico ----------------------------------------------------------
-    def plot_temperature_graph(self, series: list[tuple[float, float]]) -> None:
-        self._temp_ax.clear()
-        self._style_axis(self._temp_ax, "Temperatura vs Tempo")
+    def plot_temperature_graph(
+            self,
+            series: list[tuple[float, float]]
+        ) -> None:
 
-        if not series:
-            self._temp_canvas.draw_idle()
-            return
+            try:
 
-        x = [p[0] for p in series]
-        y = [p[1] for p in series]
+                if not self.winfo_exists():
+                    return
 
-        self._temp_ax.plot(x, y, color=THEME_COLORS["accent"], linewidth=2.4)
+                self._temp_ax.clear()
 
-        if self._avg_series:
-            avg_x = [p[0] for p in self._avg_series]
-            avg_y = [p[1] for p in self._avg_series]
-            self._temp_ax.plot(avg_x, avg_y, color=THEME_COLORS["line_avg"], linewidth=3.0)
+                self._style_axis(
+                    self._temp_ax,
+                    "Temperatura vs Tempo"
+                )
 
-        if self._phase_index is not None and 0 <= self._phase_index < len(series):
-            px, py = series[self._phase_index]
-            self._temp_ax.scatter([px], [py], color=THEME_COLORS["line_avg"], s=44, zorder=5)
-            self._temp_ax.text(
-                px,
-                py + 0.4,
-                "Início da Fusão",
-                color=THEME_COLORS["text_secondary"],
-                fontsize=8,
-            )
+                if not series:
+                    self._temp_canvas.draw_idle()
+                    return
 
-        self._temp_ax.set_xlabel("Tempo (min)", color=THEME_COLORS["text_muted"], fontsize=8)
-        self._temp_ax.set_ylabel("Temperatura (°C)", color=THEME_COLORS["text_muted"], fontsize=8)
-        self._temp_canvas.draw_idle()
+                x = [p[0] for p in series]
+                y = [p[1] for p in series]
+
+                self._temp_ax.plot(
+                    x,
+                    y,
+                    color=THEME_COLORS["accent"],
+                    linewidth=2.4
+                )
+
+                if self._avg_series:
+
+                    avg_x = [p[0] for p in self._avg_series]
+                    avg_y = [p[1] for p in self._avg_series]
+
+                    self._temp_ax.plot(
+                        avg_x,
+                        avg_y,
+                        color=THEME_COLORS["line_avg"],
+                        linewidth=3
+                    )
+
+                if (
+                    self._phase_index is not None
+                    and 0 <= self._phase_index < len(series)
+                ):
+
+                    px, py = series[self._phase_index]
+
+                    self._temp_ax.scatter(
+                        [px],
+                        [py],
+                        color=THEME_COLORS["line_avg"],
+                        s=44,
+                        zorder=5
+                    )
+
+                self._temp_ax.set_xlabel(
+                    "Tempo (min)",
+                    color=THEME_COLORS["text_muted"],
+                    fontsize=8
+                )
+
+                self._temp_ax.set_ylabel(
+                    "Temperatura (°C)",
+                    color=THEME_COLORS["text_muted"],
+                    fontsize=8
+                )
+
+                self._temp_canvas.draw_idle()
+
+            except Exception as e:
+                print(f"[GRAPH ERROR] {e}")
 
     def _build_temperature_series(self, exp: dict) -> list[tuple[float, float]]:
         t_initial = exp.get("temperatura_inicial")
@@ -657,18 +730,61 @@ class DashboardTab(ctk.CTkFrame):
         return "liquid"
 
     def _draw_pcm_state(self, state: str) -> None:
-        self._pcm_state = state
-        if state == "solid":
-            self._pcm_canvas.itemconfigure(self._pcm_circle, fill=THEME_COLORS["card_soft"], outline=THEME_COLORS["primary"])
-            self._pcm_canvas.itemconfigure(self._pcm_inner, fill="", outline="")
-        elif state == "transition":
-            self._pcm_canvas.itemconfigure(self._pcm_circle, fill=THEME_COLORS["card_soft"], outline=THEME_COLORS["line_avg"])
-            self._pcm_canvas.itemconfigure(self._pcm_inner, fill=THEME_COLORS["card"], outline="")
-        else:
-            self._pcm_canvas.itemconfigure(self._pcm_circle, fill=THEME_COLORS["accent"], outline=THEME_COLORS["line_avg"])
-            self._pcm_canvas.itemconfigure(self._pcm_inner, fill=THEME_COLORS["card_soft"], outline="")
+        try:
 
-        self._pcm_canvas.itemconfigure(self._pcm_temp_text, text=self._canvas_temp_var.get())
+            if not self.winfo_exists():
+                return
+            self._pcm_state = state
+
+            if state == "solid":
+
+                self._pcm_canvas.itemconfigure(
+                    self._pcm_circle,
+                    fill=THEME_COLORS["card_soft"],
+                    outline=THEME_COLORS["primary"]
+                )
+
+                self._pcm_canvas.itemconfigure(
+                    self._pcm_inner,
+                    fill="",
+                    outline=""
+                )
+
+            elif state == "transition":
+
+                self._pcm_canvas.itemconfigure(
+                    self._pcm_circle,
+                    fill=THEME_COLORS["card_soft"],
+                    outline=THEME_COLORS["line_avg"]
+                )
+
+                self._pcm_canvas.itemconfigure(
+                    self._pcm_inner,
+                    fill=THEME_COLORS["card"],
+                    outline=""
+                )
+
+            else:
+
+                self._pcm_canvas.itemconfigure(
+                    self._pcm_circle,
+                    fill=THEME_COLORS["accent"],
+                    outline=THEME_COLORS["line_avg"]
+                )
+
+                self._pcm_canvas.itemconfigure(
+                    self._pcm_inner,
+                    fill=THEME_COLORS["card_soft"],
+                    outline=""
+                )
+
+            self._pcm_canvas.itemconfigure(
+                self._pcm_temp_text,
+                text=self._canvas_temp_var.get()
+            )
+
+        except Exception as e:
+            print(f"[PCM DRAW ERROR] {e}")
 
     def _animate_pcm(self) -> None:
 
@@ -725,35 +841,62 @@ class DashboardTab(ctk.CTkFrame):
         except Exception:
             pass
 
-    def destroy(self):
-
-        if self._animate_id is not None:
-
-            try:
-                self.after_cancel(self._animate_id)
-            except Exception:
-                pass
-
-            self._animate_id = None
-
-        super().destroy()
-
     def _compute_average_series(self) -> list[tuple[float, float]]:
-        candidates = [exp for exp in self._experiments if exp.get("temperatura_inicial") is not None and exp.get("temperatura_final") is not None]
+
+        candidates = [
+            exp
+            for exp in self._experiments
+            if exp.get("temperatura_inicial") is not None
+            and exp.get("temperatura_final") is not None
+        ]
+
         if not candidates:
             return []
+
         points = 24
-        avg_delta = sum([exp.get("delta_tempo") or 0 for exp in candidates]) / len(candidates)
-        x_values = [i * (avg_delta / (points - 1)) if avg_delta else i for i in range(points)]
+
+        avg_delta = sum(
+            float(exp.get("delta_tempo") or 0)
+            for exp in candidates
+        ) / len(candidates)
+
+        x_values = [
+            i * (avg_delta / (points - 1))
+            if avg_delta else i
+            for i in range(points)
+        ]
+
         y_values = []
+
         for i in range(points):
-            ratios = i / (points - 1)
-            temps = []
+
+            ratio = i / (points - 1)
+
+            temps: list[float] = []
+
             for exp in candidates:
+
                 t_initial = exp.get("temperatura_inicial")
                 t_final = exp.get("temperatura_final")
-                temps.append(t_initial + (t_final - t_initial) * ratios)
-            y_values.append(sum(temps) / len(temps))
+
+                if t_initial is None or t_final is None:
+                    continue
+
+                temp = (
+                    float(t_initial)
+                    + (
+                        float(t_final)
+                        - float(t_initial)
+                    ) * ratio
+                )
+
+                temps.append(temp)
+
+            if temps:
+                y_values.append(sum(temps) / len(temps))
+            else:
+                y_values.append(0)
+
         return list(zip(x_values, y_values))
 
     def _refresh_statistics(self) -> None:
@@ -762,10 +905,25 @@ class DashboardTab(ctk.CTkFrame):
                 lbl.configure(text="--")
             return
 
-        tempos = [exp.get("delta_tempo") for exp in self._experiments if exp.get("delta_tempo") is not None]
-        temps_finais = [exp.get("temperatura_final") for exp in self._experiments if exp.get("temperatura_final") is not None]
-        energias = [self.db.get_energia_armazenada(exp.get("id")) for exp in self._experiments]
-        energias = [e for e in energias if e is not None]
+        tempos: list[float] = [
+            float(exp["delta_tempo"])
+            for exp in self._experiments
+            if exp.get("delta_tempo") is not None
+        ]
+        
+        temps_finais: list[float] = [
+            float(exp["temperatura_final"])
+            for exp in self._experiments
+            if exp.get("temperatura_final") is not None
+        ]
+        energias: list[float] = [
+            float(e)
+            for e in (
+                self.db.get_energia_armazenada(exp.get("id"))
+                for exp in self._experiments
+            )
+            if e is not None
+        ]
 
         if tempos:
             self._stats_labels["tempo_fusao"].configure(text=f"{sum(tempos) / len(tempos):.1f} min")
@@ -774,10 +932,10 @@ class DashboardTab(ctk.CTkFrame):
         if energias:
             self._stats_labels["energia_media"].configure(text=f"{sum(energias) / len(energias):.0f} J")
 
-        efficiencies = [
-            row["eficiencia"]
+        efficiencies: list[float] = [
+            float(row["eficiencia"])
             for row in self.db.list_thermal_calculations()
-            if row["eficiencia"] is not None
+            if row.get("eficiencia") is not None
         ]
         if efficiencies:
             self._stats_labels["eficiencia"].configure(text=f"{sum(efficiencies) / len(efficiencies):.0f} %")
@@ -806,7 +964,7 @@ class DashboardTab(ctk.CTkFrame):
         )
 
         self._metric_rate.configure(
-            text=f"{dados['media_eficiencia']} %"
+        text=f"{dados['media_taxa']} °C/min"
         )
 
         self._avg_series = self._compute_average_series()
@@ -858,7 +1016,7 @@ class DashboardTab(ctk.CTkFrame):
 
         if not options:
             options = ["Nenhum experimento"]
-            self._experiment_map[options[0]] = None
+            self._experiment_map: dict[str, dict | None] = {}
 
         try:
             self._experiment_combo["values"] = options
@@ -869,20 +1027,43 @@ class DashboardTab(ctk.CTkFrame):
             return
 
     def _on_experiment_selected(self) -> None:
-        label = self._experiment_combo.get()
-        self._selected_experiment = self._experiment_map.get(label)
+        try:
+            if not self.winfo_exists():
+                return
+
+            label = self._experiment_combo.get()
+
+            self._selected_experiment = self._experiment_map.get(label)
+
+            self.update_dashboard()
+
+        except Exception as e:
+            print(f"[EXPERIMENT SELECT ERROR] {e}")
 
     def _on_experiment_combo_selected(self, _event=None) -> None:
         self._on_experiment_selected()
 
     def destroy(self) -> None:
-        # CORREÇÃO: Cancelar animação antes de destruir
-        if self._animate_id:
-            try:
-                self.after_cancel(self._animate_id)
-            except Exception:
-                pass
-            self._animate_id = None
+
+        try:
+
+            if self._animate_id:
+                self.after_cancel(self._animate_id) # Cancelar animação PCM
+                self._animate_id = None 
+
+        except Exception:
+            pass
+
+        try:
+            self._temp_fig.clear()
+        except Exception:
+            pass
+        
+        try:
+            # Fechar explicitamente a figura do Matplotlib para liberar memória
+            plt.close(self._temp_fig)
+            pass
+
         super().destroy()
 
     # --- Visuals ----------------------------------------------------------
@@ -894,7 +1075,7 @@ class DashboardTab(ctk.CTkFrame):
             return
         from random import randint
 
-        for _ in range(420):
+        for _ in range(120):
             x = randint(0, w)
             y = randint(0, h)
             shade = randint(14, 24)

@@ -1,5 +1,5 @@
 from collections import deque
-from time import time
+import time
 from typing import Deque, List
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
