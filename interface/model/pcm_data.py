@@ -1,10 +1,11 @@
 import sqlite3
 from pathlib import Path
 from typing import List, Tuple
+from utils.paths import DB_PATH
 
 
 class PCMData:
-    def __init__(self, db_path: str | Path = "pcmdata.db") -> None:
+    def __init__(self, db_path: str | Path = DB_PATH):
         self.db_path = Path(db_path)
         self._init_db()
 

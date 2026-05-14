@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-
+from utils.paths import DB_PATH
 from .pcm_model import PCMResult
 
 
 class PCMRepository:
-    def __init__(self, db_path: str | Path = "pcm_data.db") -> None:
+    def __init__(self, db_path: str | Path = DB_PATH):
         self.db_path = Path(db_path)
         self.init_db()
 

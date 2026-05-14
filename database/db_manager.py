@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
+from utils.paths import DB_PATH
 
 DB_PATH = Path(__file__).parent / "pcmdata.db"
 
@@ -37,8 +38,14 @@ EXPECTED_THERMAL_CALC_COLUMNS: tuple[str, ...] = (
 
 class DatabaseManager:
     def __init__(self, db_path: Path | str | None = None) -> None:
-        self.db_path = Path(db_path) if db_path is not None else DB_PATH
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+
+        self.db_path = Path(db_path) if db_path else DB_PATH
+
+        self.conn = sqlite3.connect(
+            self.db_path,
+            check_same_thread=False
+        )
+
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
 
