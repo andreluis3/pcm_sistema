@@ -238,7 +238,6 @@ class SensorPage(ctk.CTkFrame):
     # =====================================================
     # GAUGE
     # =====================================================
-
     def create_temperature_gauge(self):
 
         gauge_card = ctk.CTkFrame(
@@ -257,37 +256,39 @@ class SensorPage(ctk.CTkFrame):
             pady=(0, PAD_NORMAL)
         )
 
-        canvas_size = 260
+        self.canvas_size = 260
 
-        canvas = tk.Canvas(
+        self.gauge_canvas = tk.Canvas(
             gauge_card,
-            width=canvas_size,
-            height=canvas_size,
+            width=self.canvas_size,
+            height=self.canvas_size,
             bg=COLORS["card"],
             highlightthickness=0
         )
 
-        canvas.pack(pady=PAD_LARGE)
+        self.gauge_canvas.pack(pady=PAD_LARGE)
 
-        canvas.create_oval(
+        # FUNDO
+        self.gauge_canvas.create_oval(
             20,
             20,
-            canvas_size - 20,
-            canvas_size - 20,
+            self.canvas_size - 20,
+            self.canvas_size - 20,
             fill=COLORS["card_soft"],
             outline=COLORS["border"],
             width=2
         )
 
-        canvas.create_arc(
+        # ARCO DINÂMICO
+        self.gauge_arc = self.gauge_canvas.create_arc(
             26,
             26,
-            canvas_size - 26,
-            canvas_size - 26,
+            self.canvas_size - 26,
+            self.canvas_size - 26,
             start=110,
-            extent=320,
+            extent=0,
             style="arc",
-            width=5,
+            width=8,
             outline=COLORS["primary"]
         )
 
@@ -330,15 +331,18 @@ class SensorPage(ctk.CTkFrame):
             border_width=1,
             border_color=COLORS["border"]
         )
-
-        graph_card.grid(
-            row=2,
-            column=0,
-            sticky="nsew",
-            padx=PAD_LARGE,
-            pady=(0, PAD_LARGE)
-        )
-
+        
+        self.gauge_arc = self.gauge_canvas.create_arc(
+                26,
+                26,
+                self.canvas_size - 26,
+                self.canvas_size - 26,
+                start=110,
+                extent=0,
+                style="arc",
+                width=8,
+                outline=COLORS["primary"]
+            )
         graph_card.grid_columnconfigure(0, weight=1)
         graph_card.grid_rowconfigure(1, weight=1)
 
@@ -365,6 +369,48 @@ class SensorPage(ctk.CTkFrame):
             sticky="nsew",
             padx=PAD_LARGE,
             pady=PAD_NORMAL
+        )
+
+
+    def update_temperature(self, value):
+
+        self.sensor_temperature_var.set(
+            f"{value:.1f} °C"
+        )
+
+        # ==========================================
+        # TERMÔMETRO VISUAL
+        # ==========================================
+
+        max_temp = 100
+
+        percent = min(max(value / max_temp, 0), 1)
+
+        extent = percent * 320
+
+        self.gauge_canvas.itemconfigure(
+            self.gauge_arc,
+            extent=extent
+        )
+
+        self.last_reading_var.set(
+            f"Última leitura: {value:.1f} °C"
+        )
+
+        self.temperature_history.append(value)
+
+        if len(self.temperature_history) > 120:
+            self.temperature_history = self.temperature_history[-120:]
+
+        if self._chart:
+            self._chart.update(
+                self.temperature_history
+            )
+
+        self.save_sensor_log(value)
+
+        self.add_log(
+            f"🌡 Temperatura: {value:.2f} °C"
         )
 
     # =====================================================
@@ -1016,6 +1062,10 @@ class SensorPage(ctk.CTkFrame):
     # LOGS
     # =====================================================
 
+    
+    
+    
+    
     def _build_logs(self, parent):
 
         log_frame = ctk.CTkFrame(
@@ -1031,6 +1081,10 @@ class SensorPage(ctk.CTkFrame):
             pady=(0, PAD_NORMAL)
         )
 
+        # ✅ IMPORTANTE
+        log_frame.grid_columnconfigure(0, weight=1)
+        log_frame.grid_rowconfigure(1, weight=1)
+
         title = ctk.CTkLabel(
             log_frame,
             text="Logs do Sensor",
@@ -1038,64 +1092,77 @@ class SensorPage(ctk.CTkFrame):
             text_color=COLORS["text_primary"]
         )
 
-        title.pack(
-            anchor="w",
+        title.grid(
+            row=0,
+            column=0,
+            sticky="w",
             padx=PAD_NORMAL,
             pady=(PAD_NORMAL, PAD_SMALL)
         )
 
-        self.log_textbox = ctk.CTkTextbox(
+        # ==========================================
+        # CONTAINER DO LOG + SCROLLBAR
+        # ==========================================
+
+        textbox_frame = ctk.CTkFrame(
             log_frame,
-            height=180,
-            fg_color=COLORS["card"],
-            text_color=COLORS["text_primary"]
+            fg_color="transparent"
         )
 
-        self.log_textbox.pack(
-            fill="both",
-            expand=True,
+        textbox_frame.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
             padx=PAD_NORMAL,
             pady=(0, PAD_NORMAL)
         )
 
-    # =====================================================
-    # SERIAL
-    # =====================================================
+        textbox_frame.grid_columnconfigure(0, weight=1)
+        textbox_frame.grid_rowconfigure(0, weight=1)
 
-    
-    # =====================================================
-    # UPDATE TEMP
-    # =====================================================
+        # ==========================================
+        # TEXTBOX
+        # ==========================================
 
-    def update_temperature(self, value):
-
-        self.sensor_temperature_var.set(
-            f"{value:.1f} °C"
+        self.log_textbox = ctk.CTkTextbox(
+            textbox_frame,
+            height=180,
+            fg_color=COLORS["card"],
+            text_color=COLORS["text_primary"],
+            wrap="word"
         )
 
-        self.last_reading_var.set(
-            f"Última leitura: {value:.1f} °C"
+        self.log_textbox.grid(
+            row=0,
+            column=0,
+            sticky="nsew"
         )
 
-        self.temperature_history.append(value)
+        # ==========================================
+        # SCROLLBAR
+        # ==========================================
 
-        if len(self.temperature_history) > 120:
-            self.temperature_history = self.temperature_history[-120:]
-
-        if self._chart:
-            self._chart.update(
-                self.temperature_history
-            )
-
-        self.save_sensor_log(value)
-
-        self.add_log(
-            f"🌡 Temperatura: {value:.2f} °C"
+        scrollbar = ctk.CTkScrollbar(
+            textbox_frame,
+            command=self.log_textbox.yview
         )
 
-    # =====================================================
-    # SAVE LOG
-    # =====================================================
+        scrollbar.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+            padx=(5, 0)
+        )
+
+        # ✅ Vincula scrollbar ao textbox
+        self.log_textbox.configure(
+            yscrollcommand=scrollbar.set
+        )
+        
+        
+        # =====================================================
+        # SAVE LOG
+        # =====================================================
 
     def save_sensor_log(self, temperature):
 
