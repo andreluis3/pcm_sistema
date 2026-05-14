@@ -6,6 +6,8 @@ from interface.login_window import LoginWindow
 from interface.main_ui import MainUI
 from interface.welcome_screen import WelcomeScreen
 from utils.user_session import load_user
+import tkinter as tk
+from utils.paths import resource_path
 
 
 def _configure_hidpi_scaling() -> None:
@@ -58,6 +60,9 @@ def main() -> None:
 
     if not welcome.proceed:
         return
+
+    root = tk.Tk()
+    root.iconbitmap(resource_path("assets/logo.ico"))
 
     app = MainUI(username=login.username or "Usuário")
     app.mainloop()
