@@ -101,6 +101,9 @@ class SimulationConnection:
 
         while self.running:
 
+            if self.start_time is None:
+                return
+
             elapsed = time.time() - self.start_time
 
             self.current_temp = self._generate_temperature(

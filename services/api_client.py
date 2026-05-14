@@ -37,10 +37,18 @@ class ThermaCoreMySQLClient:
 
     # ==================== EXPERIMENTOS ====================
 
-    def insert_experiment(self, data: Dict) -> int:
-        status, payload = self._request_json("POST", "/experimentos", json=data, timeout=10)
+    def insert_experiment(self, data: Dict) -> int | None:
+
+        status, payload = self._request_json(
+            "POST",
+            "/experimentos",
+            json=data,
+            timeout=10
+        )
+
         if status is None or not isinstance(payload, dict):
             return None
+
         return payload.get("id")
 
     def update_experiment(self, exp_id: int, data: Dict):
@@ -72,11 +80,22 @@ class ThermaCoreMySQLClient:
 
     # ==================== CÁLCULOS ====================
 
-    def insert_thermal_calculation(self, data: Dict) -> int:
-        status, payload = self._request_json("POST", "/calculos-termicos", json=data, timeout=10)
-        if status is None or not isinstance(payload, dict):
-            return None
-        return payload.get("id")
+    def insert_thermal_calculation(
+            self,
+            data: Dict
+        ) -> int | None:
+
+            status, payload = self._request_json(
+                "POST",
+                "/calculos-termicos",
+                json=data,
+                timeout=10
+            )
+
+            if status is None or not isinstance(payload, dict):
+                return None
+
+            return payload.get("id")
 
     def list_thermal_calculations(self) -> List[Dict]:
         status, payload = self._request_json("GET", "/calculos-termicos", timeout=10)

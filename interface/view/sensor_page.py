@@ -3,7 +3,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from typing import List
-
+from interface.view.charts import LineChart
 import customtkinter as ctk
 
 
@@ -146,22 +146,26 @@ class SensorPage(ctk.CTkFrame):
         # UI REFS
         # =========================
 
-        self._chart = None
+        self._chart: LineChart | None = None
         self._status_label = None
         
         # ✅ NOVO: Referências para seções dinâmicas
-        self.serial_section = None
-        self.api_section = None
-        self.mqtt_section = None
-        self.simulation_section = None
-        self.log_frame = None
+        self.serial_section: ctk.CTkFrame | None = None
+        self.api_section: ctk.CTkFrame | None = None
+        self.mqtt_section: ctk.CTkFrame | None = None
+        self.simulation_section: ctk.CTkFrame | None = None
+        self.log_frame: ctk.CTkFrame | None = None
 
         self._build_layout()
         
     def destroy(self):
 
         try:
-            self._chart.destroy()
+
+            if hasattr(self, "_chart") and self._chart is not None:
+
+                self._chart.destroy()
+
         except Exception:
             pass
 
@@ -364,13 +368,15 @@ class SensorPage(ctk.CTkFrame):
 
         self._chart = MinimalLineChart(graph_card)
 
-        self._chart.widget.grid(
-            row=1,
-            column=0,
-            sticky="nsew",
-            padx=PAD_LARGE,
-            pady=PAD_NORMAL
-        )
+        if self._chart is not None:
+
+            self._chart.widget.grid(
+                row=1,
+                column=0,
+                sticky="nsew",
+                padx=PAD_LARGE,
+                pady=PAD_NORMAL
+            )
 
 
     def update_temperature(self, value):
@@ -1229,41 +1235,52 @@ class SensorPage(ctk.CTkFrame):
 
         # ✅ NOVO: Mostrar a seção correspondente
         if mode == "Serial":
-            self.serial_section.grid(
-                row=2,
-                column=0,
-                sticky="ew",
-                padx=PAD_NORMAL,
-                pady=(0, PAD_NORMAL)
-            )
+
+            if self.serial_section is not None:
+
+                self.serial_section.grid(
+                    row=2,
+                    column=0,
+                    sticky="ew",
+                    padx=PAD_NORMAL,
+                    pady=(0, PAD_NORMAL)
+                )
 
         elif mode == "API":
-            self.api_section.grid(
-                row=2,
-                column=0,
-                sticky="ew",
-                padx=PAD_NORMAL,
-                pady=(0, PAD_NORMAL)
-            )
+
+            if self.api_section is not None:
+
+                self.api_section.grid(
+                    row=2,
+                    column=0,
+                    sticky="ew",
+                    padx=PAD_NORMAL,
+                    pady=(0, PAD_NORMAL)
+                )
 
         elif mode == "MQTT":
-            self.mqtt_section.grid(
-                row=2,
-                column=0,
-                sticky="ew",
-                padx=PAD_NORMAL,
-                pady=(0, PAD_NORMAL)
-            )
+
+            if self.mqtt_section is not None:
+
+                self.mqtt_section.grid(
+                    row=2,
+                    column=0,
+                    sticky="ew",
+                    padx=PAD_NORMAL,
+                    pady=(0, PAD_NORMAL)
+                )
 
         elif mode == "Simulação":
-            self.simulation_section.grid(
-                row=2,
-                column=0,
-                sticky="ew",
-                padx=PAD_NORMAL,
-                pady=(0, PAD_NORMAL)
-            )
 
+            if self.simulation_section is not None:
+
+                self.simulation_section.grid(
+                    row=2,
+                    column=0,
+                    sticky="ew",
+                    padx=PAD_NORMAL,
+                    pady=(0, PAD_NORMAL)
+                )
     # =====================================================
     # HIDE SECTIONS
     # =====================================================

@@ -2,7 +2,7 @@ from services.api_client import ThermaCoreMySQLClient
 from database.database_manager import DatabaseManager
 import os
 import traceback
-
+import time
 
 class HybridRepository:
 
@@ -11,9 +11,43 @@ class HybridRepository:
         self.api = ThermaCoreMySQLClient()
         self.sqlite = DatabaseManager()
         self._debug = os.getenv("THERMACORE_HYBRID_DEBUG", "0") in {"1", "true", "True", "yes", "YES"}
+        self._api_status = False
+        self._last_api_check = 0
 
     def api_online(self):
-        return self.api.health_check()
+
+        now = time.time()
+
+        # cache de 5 segundos
+        if now - self._last_api_check < 5:
+            return self._api_status
+
+        self._last_api_check = now
+
+        try:
+            self._api_status = self.api.health_check()
+
+        except Exception as e:
+
+            print(f"[API CHECK ERROR] {e}")
+            self._api_status = False
+
+        return self._api_status
+    
+    def _execute(self, api_fn, sqlite_fn, *args, **kwargs):
+
+        if self.api_online():
+
+            result = self._safe_api_call(
+                api_fn,
+                *args,
+                **kwargs
+            )
+
+            if result is not None:
+                return result
+
+        return sqlite_fn(*args, **kwargs)
 
     def _safe_api_call(self, fn, *args, **kwargs):
         try:
@@ -338,31 +372,19 @@ class HybridRepository:
 
     def get_delta_t(self, experimento_id):
 
-        if self.api_online():
-
-            try:
-
-                return self.api.get_delta_t(experimento_id)
-
-            except Exception as e:
-
-                print(f"[ERRO API] {e}")
-
-        return self.sqlite.get_delta_t(experimento_id)
+        return self._execute(
+            self.api.get_delta_t,
+            self.sqlite.get_delta_t,
+            experimento_id
+        )
 
     def get_temperatura_media(self, experimento_id):
 
-        if self.api_online():
-
-            try:
-
-                return self.api.get_temperatura_media(experimento_id)
-
-            except Exception as e:
-
-                print(f"[ERRO API] {e}")
-
-        return self.sqlite.get_temperatura_media(experimento_id)
+        return self._execute(
+            self.api.get_temperatura_media,
+            self.sqlite.get_temperatura_media,
+            experimento_id
+        )
 
     def get_heating_rate(self, experimento_id):
 
@@ -380,18 +402,12 @@ class HybridRepository:
 
     def get_energia_armazenada(self, experimento_id):
 
-        if self.api_online():
-
-            try:
-
-                return self.api.get_energia_armazenada(experimento_id)
-
-            except Exception as e:
-
-                print(f"[ERRO API] {e}")
-
-        return self.sqlite.get_energia_armazenada(experimento_id)
-   
+        return self._execute(
+            self.api.get_energia_armazenada,
+            self.sqlite.get_energia_armazenada,
+            experimento_id
+        )
+    
 
     # =========================
     # DASHBOARD
@@ -399,25 +415,71 @@ class HybridRepository:
 
     def get_metricas(self, exp_id):
 
-        if self.api_online():
+        exp = self.get_experiment_by_id(exp_id)
+
+        if not exp:
+            return {}
+
+        t_ini = exp.get("temperatura_inicial")
+        t_fin = exp.get("temperatura_final")
+
+        temperatura_media = None
+        delta_temperatura = None
+        heating_rate = None
+
+        if t_ini is not None and t_fin is not None:
+
+            temperatura_media = (
+                float(t_ini) + float(t_fin)
+            ) / 2
+
+            delta_temperatura = (
+                float(t_fin) - float(t_ini)
+            )
+
+        tempo = exp.get("delta_tempo")
+
+        if (
+            tempo is not None
+            and delta_temperatura is not None
+            and float(tempo) != 0
+        ):
+
+            heating_rate = (
+                delta_temperatura / float(tempo)
+            )
+
+        # =========================
+        # ENERGIA DIRETO DO EXP
+        # =========================
+
+        energia = exp.get("energia_armazenada")
+
+        # fallback caso não exista no experimento
+        if energia is None:
 
             try:
-                return self.api.get_metricas(exp_id)
-            except Exception as e:
-                print(f"[API METRICAS ERROR] {e}")
+
+                calculo = self.get_calculo_by_experimento_tipo(
+                    exp_id,
+                    "Energia Absorvida"
+                )
+
+                if calculo:
+                    energia = calculo.get("resultado")
+
+            except Exception:
+                energia = None
 
         return {
-            "temperatura_media":
-                self.sqlite.get_temperatura_media(exp_id),
 
-            "delta_temperatura":
-                self.sqlite.get_delta_t(exp_id),
+            "temperatura_media": temperatura_media,
 
-            "heating_rate":
-                self.sqlite.get_heating_rate(exp_id),
+            "delta_temperatura": delta_temperatura,
 
-            "energia_armazenada":
-                self.sqlite.get_energia_armazenada(exp_id)
+            "heating_rate": heating_rate,
+
+            "energia_armazenada": energia,
         }
         
     def delete_thermal_calculation(self, calculo_id):

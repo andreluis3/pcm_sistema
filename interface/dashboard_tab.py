@@ -107,7 +107,8 @@ class DashboardTab(ctk.CTkFrame):
 
             current_temp = (
                 exp.get("temperatura_final")
-                or temp_media
+                or exp.get("temperatura_media")
+                or 0
             )
 
             if current_temp is not None:
@@ -133,19 +134,20 @@ class DashboardTab(ctk.CTkFrame):
         except Exception as e:
             print(f"[DASHBOARD UPDATE ERROR] {e}")
 
-    def _set_metrics_from_experiment(self, exp_id: int | None) -> None:
-        """Busca e define as métricas para um experimento específico."""
+    def _set_metrics_from_experiment(self, exp_id):
+
         if exp_id is None:
             self._set_metrics(None, None, None, None)
             return
 
-        # Otimização: buscar todos os dados de uma vez ou cachear
-        temp_media = self.db.get_temperatura_media(exp_id)
-        delta_t = self.db.get_delta_t(exp_id)
-        heating_rate = self.db.get_heating_rate(exp_id)
-        energia = self.db.get_energia_armazenada(exp_id)
+        metricas = self.db.get_metricas(exp_id)
 
-        self._set_metrics(temp_media, delta_t, heating_rate, energia)
+        self._set_metrics(
+            metricas.get("temperatura_media"),
+            metricas.get("delta_temperatura"),
+            metricas.get("heating_rate"),
+            metricas.get("energia_armazenada")
+        )
 
     # --- Métricas ---------------------------------------------------------
     def _set_metrics(
@@ -1045,26 +1047,63 @@ class DashboardTab(ctk.CTkFrame):
 
     def destroy(self) -> None:
 
+        # =========================
+        # CANCELA ANIMAÇÃO
+        # =========================
+
         try:
 
             if self._animate_id:
-                self.after_cancel(self._animate_id) # Cancelar animação PCM
-                self._animate_id = None 
+
+                self.after_cancel(self._animate_id)
+
+                self._animate_id = None
 
         except Exception:
             pass
 
+        # =========================
+        # DESTROI CANVAS MATPLOTLIB
+        # =========================
+
         try:
-            self._temp_fig.clear()
+
+            if hasattr(self, "_temp_canvas"):
+
+                widget = self._temp_canvas.get_tk_widget()
+
+                if widget:
+
+                    widget.destroy()
+
         except Exception:
             pass
-        
+
+        # =========================
+        # LIMPA FIGURA
+        # =========================
+
         try:
-            # Fechar explicitamente a figura do Matplotlib para liberar memória
-            plt.close(self._temp_fig)
+
+            if hasattr(self, "_temp_fig"):
+
+                self._temp_fig.clear()
+
+                plt.close(self._temp_fig)
+
+        except Exception:
             pass
 
-        super().destroy()
+        # =========================
+        # DESTROI FRAME
+        # =========================
+
+        try:
+
+            super().destroy()
+
+        except Exception:
+            pass
 
     # --- Visuals ----------------------------------------------------------
     def _draw_noise(self, _event=None) -> None:
