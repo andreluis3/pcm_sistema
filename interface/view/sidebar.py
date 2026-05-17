@@ -17,17 +17,16 @@ class Sidebar(ctk.CTkFrame):
     def __init__(self, parent, ao_selecionar, user_name="Usuário") -> None:
         super().__init__(parent, fg_color=THEME_COLORS["card"])
 
-        # =========================
-        # CONFIG FIXA (SEM ANIMAÇÃO)
-        # =========================
+       
         self.expanded_width = 230
         self.collapsed_width = 75
+
         self.is_expanded = True
 
         self.configure(width=self.expanded_width)
-        self.grid_propagate(False)
 
-        self.grid_rowconfigure(8, weight=1)
+
+        self.grid_rowconfigure(9, weight=1)
         self.grid_columnconfigure(0, weight=1)
         
         self.grid_propagate(False)
@@ -51,7 +50,7 @@ class Sidebar(ctk.CTkFrame):
             column=0,
             padx=PAD_LARGE,
             pady=PAD_NORMAL,
-            sticky="w"
+            sticky="ew"
         )
 
         # =========================
@@ -183,6 +182,8 @@ class Sidebar(ctk.CTkFrame):
             btn.configure(text=btn._full_text)
 
         self.user_name.configure(text=self.user_name.cget("text"))
+        self.user_name.grid()
+        self.user_role.grid()
 
     # =========================
     # COLAPSADO (SÓ ÍCONES)
@@ -194,7 +195,8 @@ class Sidebar(ctk.CTkFrame):
             btn.configure(text=btn._icon)
 
         # opcional: esconder texto do usuário
-        self.user_name.configure(text="")
+        self.user_name.grid_remove()
+        self.user_role.grid_remove()
         
     def _safe_select(self, callback, key):
         try:

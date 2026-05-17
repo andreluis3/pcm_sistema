@@ -46,7 +46,7 @@ class DashboardTab(ctk.CTkFrame):
         self._animate_id = None  # CORREÇÃO: Armazenar ID da animação PCM
 
         self._bg = Canvas(self, bg=THEME_COLORS["bg"], highlightthickness=0)
-        self._bg.place(relwidth=1, relheight=1)
+        self._bg.grid(row=0, column=0, sticky="nsew")
         self.bind("<Configure>", self._draw_noise)
 
         self._build_layout()

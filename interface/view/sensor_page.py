@@ -35,7 +35,7 @@ COLORS = THEME_COLORS
 
 class MinimalLineChart:
     def __init__(self, parent) -> None:
-        self.figure = Figure(figsize=(5.6, 2.4), dpi=100)
+        self.figure = Figure(dpi=100)
 
         self.figure.patch.set_facecolor(COLORS["card"])
 

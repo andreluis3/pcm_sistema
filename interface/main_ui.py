@@ -22,8 +22,12 @@ class MainUI(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        self.geometry("1280x760")
-        self.title("PCM Thermal Manager")
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+
+        self.minsize(1100, 700)
+        self.geometry(f"{int(screen_w*0.90)}x{int(screen_h*0.90)}")
+        self.title("Gerenciador Térmico de PCM")
         self.username = username
 
         self.current_screen = None
@@ -46,7 +50,7 @@ class MainUI(ctk.CTk):
 
         # Sidebar fixa
         self.sidebar = Sidebar(self, self.load_page, user_name=self.username)
-        self.sidebar.grid(row=0, column=0, sticky="nsw")
+        self.sidebar.grid(row=0, column=0, sticky="ns")
         self.grid_columnconfigure(0, weight=0)  # 🔥 ESSENCIAL
 
         # Área de conteúdo
@@ -146,7 +150,7 @@ class MainUI(ctk.CTk):
 
         if page_name == "dashboard":
             self._dashboard_ref = self.current_screen
-        self.current_screen.pack(fill="both", expand=True)
+        self.current_screen.grid(row=0, column=0, sticky="nsew")
         self.sidebar.set_active(page_name)
 
         if hasattr(self.current_screen, "load_dashboard_data"):
