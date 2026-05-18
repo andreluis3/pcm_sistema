@@ -379,19 +379,18 @@ class SensorPage(ctk.CTkFrame):
             )
 
 
-    def update_temperature(self, value):
+    def update_temperature(self, data):
+        temperature = data["temperature"]
+        minutes = data["minutes"]
+        timestamp_ms = data["timestamp_ms"]
 
         self.sensor_temperature_var.set(
-            f"{value:.1f} °C"
+            f"{temperature:.1f} °C"
         )
-
-        # ==========================================
-        # TERMÔMETRO VISUAL
-        # ==========================================
 
         max_temp = 100
 
-        percent = min(max(value / max_temp, 0), 1)
+        percent = min(max(temperature / max_temp, 0), 1)
 
         extent = percent * 320
 
@@ -401,10 +400,12 @@ class SensorPage(ctk.CTkFrame):
         )
 
         self.last_reading_var.set(
-            f"Última leitura: {value:.1f} °C"
+            f"{temperature:.1f} °C | {minutes:.2f} min"
         )
 
-        self.temperature_history.append(value)
+        self.temperature_history.append(
+            temperature
+        )
 
         if len(self.temperature_history) > 120:
             self.temperature_history = self.temperature_history[-120:]
@@ -414,12 +415,21 @@ class SensorPage(ctk.CTkFrame):
                 self.temperature_history
             )
 
-        self.save_sensor_log(value)
+        self.sensor_logs.append({
+
+            "temperature": temperature,
+
+            "minutes": minutes,
+
+            "timestamp_ms": timestamp_ms,
+
+            "datetime": datetime.now()
+        })
 
         self.add_log(
-            f"🌡 Temperatura: {value:.2f} °C"
+            f"🌡 {temperature:.2f} °C | "
+            f"{minutes:.2f} min"
         )
-
     # =====================================================
     # CONFIG PANEL
     # =====================================================
@@ -1023,10 +1033,25 @@ class SensorPage(ctk.CTkFrame):
 
         # ✅ NOVO: Configuração dinâmica conforme modo
         if mode == "Serial":
-            config = {
-                "port": self.com_option.get(),
-                "baudrate": int(self.baudrate_option.get())
-            }
+
+            self.serial_connection = SerialConnection(
+
+                port=self.com_option.get(),
+
+                baudrate=int(
+                    self.baudrate_option.get()
+                ),
+
+                on_data=self.update_temperature,
+
+                on_status=self.update_connection_status,
+
+                on_log=self.add_log
+            )
+
+            self.serial_connection.connect()
+
+            return
 
         elif mode == "API":
             try:
@@ -1062,8 +1087,8 @@ class SensorPage(ctk.CTkFrame):
         self.sensor_manager.connect(mode, config)
 
     def disconnect_sensor(self):
-
-        self.sensor_manager.disconnect()
+        if self.serial_connection:
+            self.serial_connection.disconnect()
         
     # =====================================================
     # LOGS

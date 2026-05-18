@@ -142,21 +142,47 @@ class SensorManager:
                 False
             )
 
-    def process_temperature(self, value):
-
+    def process_temperature(self, data):
         try:
 
-            temperature = float(value)
+            temperature = float(
+                data["temperature"]
+            )
 
+            minutes = float(
+                data["minutes"]
+            )
+
+            timestamp_ms = int(
+                data["timestamp_ms"]
+            )
+
+            #
+            # BUFFER
+            #
             self.buffer.add(temperature)
 
+            #
+            # REPOSITORY
+            #
             self.repository.save(
                 temperature,
                 self.mode
             )
 
+            #
+            # CALLBACK UI
+            #
             if self.on_temperature:
-                self.on_temperature(temperature) 
+
+                self.on_temperature({
+
+                    "temperature": temperature,
+
+                    "minutes": minutes,
+
+                    "timestamp_ms": timestamp_ms
+                })
 
         except Exception as e:
 

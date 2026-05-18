@@ -122,7 +122,27 @@ class SerialConnection:
                             value = float(line)
 
                             if self.on_data:
-                                self.on_data(value)
+                                parts = line.split(",")
+
+                                temperature = float(
+                                    parts[0].replace("TEMP:", "")
+                                )
+
+                                timestamp_ms = int(
+                                    parts[1].replace("TIME:", "")
+                                )
+
+                                minutes = float(
+                                    parts[2].replace("MIN:", "")
+                                )
+
+                                data = {
+                                    "temperature": temperature,
+                                    "timestamp_ms": timestamp_ms,
+                                    "minutes": minutes
+                                }
+
+                                self.on_data(data)
 
                         except ValueError:
 
