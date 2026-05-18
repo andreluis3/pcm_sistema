@@ -16,6 +16,7 @@ class SensorManager:
         on_log=None
     ):
 
+        
         self.on_temperature = on_temperature
         self.on_status = on_status
         self.on_log = on_log
@@ -26,122 +27,74 @@ class SensorManager:
         self.repository = SensorRepository()
 
         self.mode = None
-        
-        # ✅ CORREÇÃO: Inicializar atributos que são usados em disconnect()
+
         self.running = False
         self.thread = None
         self.serial = None
-
+        
+    # sensor_manager.py - MÉTODO CORRIGIDO
     def connect(self, mode, config=None):
-
         self.disconnect()
-
         self.mode = mode
-
         config = config or {}
 
         try:
-
             if mode == "Serial":
-
+                # ✅ CORREÇÃO: usar process_temperature e log
                 self.connection = SerialConnection(
                     port=config.get("port", "COM3"),
                     baudrate=config.get("baudrate", 115200),
-                    on_data=self.process_temperature,
-                    on_log=self.log
+                    on_data=self.process_temperature,    # ✅ método que existe
+                    on_log=self.log                      # ✅ método que existe
                 )
 
             elif mode == "API":
-                
-                # ✅ NOVO: Integração com APISensorDriver
                 self.connection = APISensorDriver(
                     host=config.get("host", "192.168.200.227"),
                     port=config.get("port", 8080),
                     endpoint=config.get("endpoint", "/sensor/temperature"),
                     poll_interval=config.get("poll_interval", 2.0),
                     timeout=config.get("timeout", 5.0),
-                    on_data=self.process_temperature,
-                    on_log=self.log
+                    on_data=self.process_temperature,    # ✅ método que existe
+                    on_log=self.log                      # ✅ método que existe
                 )
 
             elif mode == "Simulação":
-
                 self.connection = SimulationConnection(
-                    on_data=self.process_temperature,
-                    on_log=self.log
+                    on_data=self.process_temperature,    # ✅ método que existe
+                    on_log=self.log                      # ✅ método que existe
                 )
-
             else:
-
-                self.log(
-                    f"Modo {mode} ainda não implementado"
-                )
-
+                self.log(f"Modo {mode} ainda não implementado")
                 return
 
             self.connection.connect()
 
             if self.on_status:
-                self.on_status(
-                    f"🟢 {mode} conectado",
-                    True
-                )
+                self.on_status(f"🟢 {mode} conectado", True)
 
         except Exception as e:
-
-            # ✅ CORREÇÃO: Chamar self.on_status() em vez de self.status()
             if self.on_status:
-                self.on_status(
-                    "🔴 Falha conexão",
-                    False
-                )
-
-            self.log(
-                f"🔴 Falha conexão: {e}"
-)
-
-            self.log(
-                str(e)
-            )
+                self.on_status("🔴 Falha conexão", False)
+            self.log(f"🔴 Falha conexão: {e}")
 
     def disconnect(self):
-
         self.running = False
 
-        # ✅ CORREÇÃO: Desconectar a conexão atual (seja qual for)
         try:
-
             if self.connection:
                 self.connection.disconnect()
-
         except Exception as e:
             self.log(f"Erro ao desconectar: {e}")
 
-        # ✅ Limpeza de atributos legacy (compatibilidade)
-        try:
-
-            if self.thread and self.thread.is_alive():
-                self.thread.join(timeout=1)
-
-        except Exception:
-            pass
-
-        try:
-
-            if self.serial and self.serial.is_open:
-                self.serial.close()
-
-        except Exception:
-            pass
-
+        # Remova a tentativa de fechar self.serial diretamente
+        # pois isso agora é responsabilidade da SerialConnection
+        
         self.log("🔴 Conexão encerrada")
-
+        
         if self.on_status:
-            self.on_status(
-                "🔴 Desconectado",
-                False
-            )
-
+            self.on_status("🔴 Desconectado", False)
+        
     def process_temperature(self, data):
         try:
 
@@ -208,3 +161,5 @@ class SensorManager:
             self.log(f"Erro listando portas: {e}")
 
             return ["COM3"]
+        
+        

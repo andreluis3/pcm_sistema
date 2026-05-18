@@ -380,56 +380,108 @@ class SensorPage(ctk.CTkFrame):
 
 
     def update_temperature(self, data):
-        temperature = data["temperature"]
-        minutes = data["minutes"]
-        timestamp_ms = data["timestamp_ms"]
 
-        self.sensor_temperature_var.set(
-            f"{temperature:.1f} °C"
-        )
+        try:
 
-        max_temp = 100
-
-        percent = min(max(temperature / max_temp, 0), 1)
-
-        extent = percent * 320
-
-        self.gauge_canvas.itemconfigure(
-            self.gauge_arc,
-            extent=extent
-        )
-
-        self.last_reading_var.set(
-            f"{temperature:.1f} °C | {minutes:.2f} min"
-        )
-
-        self.temperature_history.append(
-            temperature
-        )
-
-        if len(self.temperature_history) > 120:
-            self.temperature_history = self.temperature_history[-120:]
-
-        if self._chart:
-            self._chart.update(
-                self.temperature_history
+            temperature = float(
+                data["temperature"]
             )
 
-        self.sensor_logs.append({
+            minutes = float(
+                data["minutes"]
+            )
 
-            "temperature": temperature,
+            timestamp_ms = int(
+                data["timestamp_ms"]
+            )
 
-            "minutes": minutes,
+            # =========================
+            # LABEL TEMPERATURA
+            # =========================
 
-            "timestamp_ms": timestamp_ms,
+            self.sensor_temperature_var.set(
+                f"{temperature:.1f} °C"
+            )
 
-            "datetime": datetime.now()
-        })
+            # =========================
+            # GAUGE
+            # =========================
 
-        self.add_log(
-            f"🌡 {temperature:.2f} °C | "
-            f"{minutes:.2f} min"
-        )
+            max_temp = 100
+
+            percent = min(
+                max(temperature / max_temp, 0),
+                1
+            )
+
+            extent = percent * 320
+
+            self.gauge_canvas.itemconfigure(
+                self.gauge_arc,
+                extent=extent
+            )
+
+            # =========================
+            # ÚLTIMA LEITURA
+            # =========================
+
+            self.last_reading_var.set(
+                f"{temperature:.1f} °C | {minutes:.2f} min"
+            )
+
+            # =========================
+            # HISTÓRICO
+            # =========================
+
+            self.temperature_history.append(
+                temperature
+            )
+
+            if len(self.temperature_history) > 120:
+
+                self.temperature_history = (
+                    self.temperature_history[-120:]
+                )
+
+            # =========================
+            # CHART
+            # =========================
+
+            if self._chart:
+
+                self._chart.update(
+                    self.temperature_history
+                )
+
+            # =========================
+            # LOGS INTERNOS
+            # =========================
+
+            self.sensor_logs.append({
+
+                "temperature": temperature,
+
+                "minutes": minutes,
+
+                "timestamp_ms": timestamp_ms,
+
+                "datetime": datetime.now()
+            })
+
+            # =========================
+            # LOG UI
+            # =========================
+
+            self.add_log(
+                f"🌡 {temperature:.2f} °C | "
+                f"{minutes:.2f} min"
+            )
+
+        except Exception as e:
+
+            self.add_log(
+                f"Erro update_temperature: {e}"
+            )
     # =====================================================
     # CONFIG PANEL
     # =====================================================
@@ -1031,30 +1083,17 @@ class SensorPage(ctk.CTkFrame):
 
         mode = self.connection_mode.get()
 
-        # ✅ NOVO: Configuração dinâmica conforme modo
         if mode == "Serial":
 
-            self.serial_connection = SerialConnection(
-
-                port=self.com_option.get(),
-
-                baudrate=int(
-                    self.baudrate_option.get()
-                ),
-
-                on_data=self.update_temperature,
-
-                on_status=self.update_connection_status,
-
-                on_log=self.add_log
-            )
-
-            self.serial_connection.connect()
-
-            return
+            config = {
+                "port": self.com_option.get(),
+                "baudrate": int(self.baudrate_option.get())
+            }
 
         elif mode == "API":
+
             try:
+
                 config = {
                     "host": self.api_ip_entry.get(),
                     "port": int(self.api_port_entry.get()),
@@ -1062,33 +1101,41 @@ class SensorPage(ctk.CTkFrame):
                     "poll_interval": 2.0,
                     "timeout": 5.0
                 }
+
             except ValueError:
+
                 self.add_log("❌ Configuração API inválida")
                 return
 
         elif mode == "MQTT":
+
             self.add_log("⚠️ MQTT ainda não implementado")
             return
 
         elif mode == "Simulação":
+
             try:
+
                 config = {
                     "interval": float(self.sim_interval_entry.get()),
                     "max_temp": float(self.sim_max_entry.get())
                 }
+
             except ValueError:
+
                 self.add_log("❌ Configuração de simulação inválida")
                 return
 
         else:
+
             self.add_log(f"❌ Modo desconhecido: {mode}")
             return
 
+        # ✅ USA O SENSOR MANAGER
         self.sensor_manager.connect(mode, config)
 
     def disconnect_sensor(self):
-        if self.serial_connection:
-            self.serial_connection.disconnect()
+        self.sensor_manager.disconnect()
         
     # =====================================================
     # LOGS
@@ -1374,3 +1421,5 @@ class SensorPage(ctk.CTkFrame):
     def get_serial_ports(self):
 
         return SerialConnection.get_available_ports()
+    
+   
