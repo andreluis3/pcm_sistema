@@ -67,6 +67,24 @@ THEME_COLORS = {
 }
 
 
+BG_COLOR      = "#0B0F16"
+PANEL_COLOR   = "#111827"
+CARD_COLOR    = "#0F172A"
+BORDER_COLOR  = "#334155"
+TEXT_PRIMARY  = "#F3F4F6"
+TEXT_SECONDARY = "#9CA3AF"
+SUCCESS_COLOR = "#E5E7EB"
+ 
+# Paleta científica do sensor (azul)
+SENSOR_ACCENT   = "#60A5FA"   # azul principal
+SENSOR_REAL     = "#94A3B8"   # cinza azulado — temperatura real
+SENSOR_FUSION   = "#F59E0B"   # âmbar — região de fusão
+SENSOR_ENERGY   = "#34D399"   # verde esmeralda — energia acumulada
+ 
+# Paleta comparativa
+COLOR_WITH_PCM    = "#60A5FA"   # azul
+COLOR_WITHOUT_PCM = "#F87171"   # vermelho suave
+
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
     color = color.lstrip("#")
     return int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
