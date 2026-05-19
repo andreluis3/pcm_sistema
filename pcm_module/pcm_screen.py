@@ -8,6 +8,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+import numpy as np
+from scipy.ndimage import uniform_filter1d
 
 from pcm_module.pcm_temperature_sensor import TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM, SensorPCMResult
 
@@ -1738,10 +1740,10 @@ class PCMCalcScreen(ctk.CTkFrame):
         idx_sem = T_sem_pcm_suave.index(pico_sem)
         ax.scatter([t_min[idx_com]], [pico_com],
                 color=COLOR_WITH_PCM, edgecolors="white", s=180, zorder=7,
-                marker="★", linewidths=1.4)
+                marker="*", linewidths=1.4)
         ax.scatter([t_min[idx_sem]], [pico_sem],
                 color=COLOR_WITHOUT_PCM, edgecolors="white", s=180, zorder=7,
-                marker="★", linewidths=1.4)
+                marker="*", linewidths=1.4)
     
         # Anotação de redução de pico
         if delta_pico > 0.5:
@@ -1858,4 +1860,3 @@ class PCMCalcScreen(ctk.CTkFrame):
 
 # Compatibilidade com integrações anteriores.
 PCMScreen = PCMCalcScreen
-
