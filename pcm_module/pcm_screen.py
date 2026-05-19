@@ -9,7 +9,7 @@ import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from pcm_module.pcm_temperature_sensor import SensorPCMResult
+from pcm_module.pcm_temperature_sensor import TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM, SensorPCMResult
 
 from .pcm_model import PCMResult
 from .pcm_repository import PCMRepository
@@ -1071,6 +1071,26 @@ class PCMCalcScreen(ctk.CTkFrame):
             text=f"{taxa:.3f} °C/min"
         )
         self._render_sensor_charts(r)
+        
+        self.sensor_kpi_values["Eficiência PCM"].configure(
+        text=f"{r.eficiencia_pcm:.2f} %"
+        )
+
+        self.sensor_kpi_values["Estado PCM"].configure(
+            text=r.estado_pcm
+        )
+
+        self.sensor_kpi_values["Energia Sensível"].configure(
+            text=f"{r.energia_sensivel_j:,.0f} J"
+        )
+
+        self.sensor_kpi_values["Energia Latente"].configure(
+            text=f"{r.energia_latente_j:,.0f} J"
+        )
+
+        self.sensor_kpi_values["Tempo Estabilização"].configure(
+            text=f"{r.tempo_estabilizacao_s / 60:.2f} min"
+        )
     
     
     def _render_sensor_charts(self, r: "SensorPCMResult") -> None:
@@ -1091,7 +1111,7 @@ class PCMCalcScreen(ctk.CTkFrame):
             ax1.spines[side].set_color(self.BORDER_COLOR)
             ax1.spines[side].set_linewidth(1.1)
     
-        t = r.tempo_s
+        t = [x / 60.0 for x in r.tempo_s]
         T_sim = r.temperatura_simulada
         T_real = r.temperatura_c
         T_ini = r.temperatura_inicial
@@ -1102,9 +1122,15 @@ class PCMCalcScreen(ctk.CTkFrame):
             color=self.TEXT_PRIMARY, fontsize=14, fontweight="bold", pad=12,
         )
     
-        # Faixa PCM
-        ax1.axhspan(50.0, 60.0, color="#00FF96", alpha=0.10,
-                    label="Faixa PCM 50–60 °C", zorder=1)
+        # Faixa PCM -> Região de fusão
+        ax1.axhspan(
+            TEMP_FUSAO_PCM,
+            TEMP_SATURACAO_PCM,
+            color="#F59E0B",
+            alpha=0.14,
+            label="Região de fusão PCM",
+            zorder=1,
+        )
     
         # Preenchimento sob a curva simulada
         ax1.fill_between(t, T_sim, min_t, color="#3B82F6", alpha=0.18,
@@ -1128,7 +1154,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         ax1.axvline(r.tempo_pico_s, color="#FFD700", linestyle=":", linewidth=1.8,
                     alpha=0.75, label=f"Tempo do pico: {_formatar_tempo_min_seg(r.tempo_pico_s)}")
     
-        ax1.set_xlabel("Tempo (s)", color=self.TEXT_PRIMARY, fontsize=11, fontweight="bold")
+        ax1.set_xlabel("Tempo (min)", color=self.TEXT_PRIMARY, fontsize=11, fontweight="bold")
         ax1.set_ylabel("Temperatura (°C)", color=self.TEXT_PRIMARY, fontsize=11, fontweight="bold")
         ax1.legend(
             loc="lower right", fontsize=9, framealpha=0.92,
@@ -1188,7 +1214,7 @@ class PCMCalcScreen(ctk.CTkFrame):
             verticalalignment="top", zorder=10,
         )
     
-        ax2.set_xlabel("Tempo (s)", color=self.TEXT_PRIMARY, fontsize=11, fontweight="bold")
+        ax2.set_xlabel("Tempo (min)", color=self.TEXT_PRIMARY, fontsize=11, fontweight="bold")
         ax2.set_ylabel("Energia Absorvida (J)", color=self.TEXT_PRIMARY, fontsize=11, fontweight="bold")
         ax2.legend(
             loc="upper left", fontsize=9, framealpha=0.92,
