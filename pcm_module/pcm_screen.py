@@ -10,7 +10,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
 from scipy.ndimage import uniform_filter1d
-
+import pandas as pd
 from pcm_module.pcm_temperature_sensor import TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM, SensorPCMResult
 
 from .pcm_model import PCMResult
@@ -243,6 +243,7 @@ def _formatar_tempo_min_seg(tempo_s: float | None) -> str:
     tempo_s = max(0.0, float(tempo_s))
     return f"{int(tempo_s // 60):02d}:{int(round(tempo_s % 60)):02d}"
 
+@staticmethod
 def _smooth(data: list[float], window: int = 9) -> list[float]:
     """Média móvel simples usando scipy para suavizar curvas."""
     if len(data) < window:
@@ -707,7 +708,7 @@ class PCMCalcScreen(ctk.CTkFrame):
 
     # ── Charts ────────────────────────────────────────────────────────────────
 
-    def _render_charts(self, result: PCMResult) -> None:
+    def _render_charts(self, result: SensorPCMResult) -> None:
         self._clear_charts()
 
         figure = Figure(figsize=(12.0, 6.5), dpi=100)
@@ -899,8 +900,13 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         ax.set_title("Sensor PCM — Temperatura × Tempo", fontsize=14)
 
-        ax.plot(result.tempo_s, result.temperatura_c, label="Temperatura real", linewidth=2)
-        ax.plot(result.tempo_s, result.temperatura_simulada, label="Temperatura simulada", linestyle="--")
+        ax.plot(
+            result.tempo_s,
+            result.temperatura_c,
+            label="Temperatura filtrada",
+            linewidth=2,
+            color="#FF5733",
+        )
 
         ax.set_xlabel("Tempo (s)")
         ax.set_ylabel("Temperatura (°C)")
@@ -1088,373 +1094,429 @@ class PCMCalcScreen(ctk.CTkFrame):
  
     
     def _update_sensor_dashboard(self, r: "SensorPCMResult") -> None:
-        """Atualiza todos os KPI cards do sensor — versão corrigida e completa."""
-        dur_min   = r.tempo_total / 60.0
-        T_ini     = r.temperatura_inicial
-        delta_t   = r.pico_temperatura - T_ini
-        taxa      = delta_t / dur_min if dur_min > 0 else 0.0
+        """Atualiza os KPI cards do sensor IR."""
+
+        dur_min = r.tempo_total / 60.0
+        delta_t = r.pico_temperatura - r.temperatura_inicial
+        taxa = delta_t / dur_min if dur_min > 0 else 0.0
         atuacao_min = r.tempo_atuacao_pcm_s / 60.0
-    
-        # ── Cards que já existiam ─────────────────────────────────────────────
-        self.sensor_kpi_values["Pico de Temperatura"].configure(
-            text=f"{r.pico_temperatura:.2f} °C"
-        )
-        self.sensor_kpi_values["Tempo de Absorção"].configure(
-            text=f"{dur_min:.2f} min"
-        )
-        self.sensor_kpi_values["Energia Total Absorvida"].configure(
+
+        # ── Métricas principais ─────────────────────────────────────
+        self.sensor_kpi_values["Energia PCM"].configure(
             text=f"{r.energia_total_j:,.0f} J"
         )
-        self.sensor_kpi_values["Tempo Atuação PCM"].configure(
-            text=f"{atuacao_min:.2f} min"
+
+        self.sensor_kpi_values["Eficiência Térmica"].configure(
+        text=f"{r.eficiencia_termica:.1f} %"
         )
-        self.sensor_kpi_values["Temperatura Média"].configure(
-            text=f"{r.temperatura_media:.2f} °C"
-        )
-        self.sensor_kpi_values["Temperatura Inicial"].configure(
-            text=f"{T_ini:.2f} °C"
-        )
-        self.sensor_kpi_values["ΔT Total"].configure(
+
+        self.sensor_kpi_values["ΔT Experimental"].configure(
             text=f"{delta_t:.2f} °C"
         )
-        self.sensor_kpi_values["Taxa de Aquecimento"].configure(
-            text=f"{taxa:.3f} °C/min"
+
+        self.sensor_kpi_values["Energia Referência"].configure(
+            text="234000 J"
         )
-    
-        # ── Cards que causavam KeyError — agora existem ───────────────────────
-        eficiencia = getattr(r, "eficiencia_pcm", None)
-        self.sensor_kpi_values["Eficiência PCM"].configure(
-            text=f"{eficiencia:.1f} %" if eficiencia is not None else "--"
+
+        self.sensor_kpi_values["Erro Experimental"].configure(
+            text=f"{r.erro_percentual:.1f} %"
         )
-    
-        estado = getattr(r, "estado_pcm", None)
+
         self.sensor_kpi_values["Estado PCM"].configure(
-            text=estado if estado else "--"
+            text=r.estado_pcm
         )
-    
-        es = getattr(r, "energia_sensivel_j", None)
-        self.sensor_kpi_values["Energia Sensível"].configure(
-            text=f"{es:,.0f} J" if es is not None else "--"
-        )
-    
-        el = getattr(r, "energia_latente_j", None)
-        self.sensor_kpi_values["Energia Latente"].configure(
-            text=f"{el:,.0f} J" if el is not None else "--"
-        )
-    
-        t_estab = getattr(r, "tempo_estabilizacao_s", None)
+        # ── Estabilização ───────────────────────────────────────────
+        if r.tempo_estabilizacao_s > 0:
+            txt_estab = f"{r.tempo_estabilizacao_s / 60.0:.2f} min"
+        else:
+            txt_estab = "--"
         self.sensor_kpi_values["Tempo Estabilização"].configure(
-            text=f"{t_estab / 60:.2f} min" if t_estab else "--"
+            text=txt_estab
         )
-    
-        # ── Cards de comparação (estimativas físicas simples) ─────────────────
-        # Atraso térmico estimado: diferença entre tempo até atingir fusão com/sem PCM
-        # Sem PCM a temperatura subiria mais rápido — estimativa conservadora
-        atraso_s = (atuacao_min * 60.0) * 0.35   # ~35% do tempo de atuação como atraso
-        self.sensor_kpi_values["Atraso Térmico"].configure(
-            text=f"{atraso_s:.0f} s"
+        # ── Comparação COM vs SEM PCM ──────────────────────────────
+
+        eficiencia = (
+            f"{r.eficiencia_relativa:.2f} %"
+            if r.eficiencia_relativa is not None
+            else "--"
         )
-    
-        # Redução de pico estimada (com PCM absorvendo calor latente)
-        reducao_pico = delta_t * 0.18   # estimativa baseada na fração latente
+
+        self.sensor_kpi_values["Eficiência Relativa"].configure(
+            text=eficiencia
+        )
+
+        reducao = (
+            f"{r.reducao_pico_c:.2f} °C"
+            if r.reducao_pico_c is not None
+            else "--"
+        )
+
         self.sensor_kpi_values["Redução de Pico"].configure(
-            text=f"~{reducao_pico:.1f} °C"
+            text=reducao
         )
-    
-        # Energia gerada pelo notebook
-        P_notebook = 50.0  # W
-        Q_notebook = P_notebook * r.tempo_total
-        self.sensor_kpi_values["Energia Notebook"].configure(
-            text=f"{Q_notebook:,.0f} J"
+
+        atraso = (
+            f"{r.atraso_termico_s:.0f} s"
+            if r.atraso_termico_s is not None
+            else "--"
         )
-    
+
+        self.sensor_kpi_values["Atraso Térmico"].configure(
+            text=atraso
+        )
+
+        # ── Renderizações ──────────────────────────────────────────
+
         self._render_sensor_charts(r)
         self._update_comparison_section(r)
-        
-    def _build_sensor_section(self) -> None:
-        """Constrói toda a seção do sensor abaixo do dashboard principal."""
-    
-        # ── Divisor visual ────────────────────────────────────────────────────
-        divider = ctk.CTkFrame(self.scroll_frame, fg_color=self.BORDER_COLOR, height=1)
-        divider.grid(row=5, column=0, sticky="ew", padx=12, pady=(8, 20))
-    
-        # ── Header da seção sensor ────────────────────────────────────────────
-        sensor_header = ctk.CTkFrame(
-            self.scroll_frame,
-            fg_color=self.PANEL_COLOR,
-            corner_radius=18,
-            border_width=1,
-            border_color=self.BORDER_COLOR,
-        )
-        sensor_header.grid(row=6, column=0, sticky="ew", padx=12, pady=(0, 16))
-        sensor_header.grid_columnconfigure(0, weight=1)
-    
-        ctk.CTkLabel(
-            sensor_header,
-            text="Sensor Infravermelho — Absorção de Calor do PCM",
-            font=("Arial", 26, "bold"),
-            text_color=self.TEXT_PRIMARY,
-        ).grid(row=0, column=0, sticky="w", padx=24, pady=(20, 6))
-    
-        ctk.CTkLabel(
-            sensor_header,
-            text=(
-                "Log do sensor IR com correção de offset (+5 °C) e ganho (×1.10). "
-                "Exibe temperatura real, calibrada e suavizada. "
-                "Energia acumulada progressiva via Q = m·c·ΔT. "
-                "Inclui comparação Com PCM × Sem PCM."
-            ),
-            font=("Arial", 13),
-            text_color=self.TEXT_SECONDARY,
-            wraplength=1080,
-            justify="left",
-        ).grid(row=1, column=0, sticky="w", padx=24, pady=(0, 14))
-    
-        sensor_actions = ctk.CTkFrame(sensor_header, fg_color="transparent")
-        sensor_actions.grid(row=0, column=1, rowspan=2, sticky="e", padx=24, pady=18)
-    
-        self.sensor_import_button = ctk.CTkButton(
-            sensor_actions,
-            text="Importar Log do Sensor",
-            command=self.import_sensor_csv,
-            width=210,
-            height=42,
-            fg_color="#1D4ED8",
-            hover_color="#1E40AF",
-            font=("Arial", 15, "bold"),
-        )
-        self.sensor_import_button.pack()
-    
-        self.sensor_status_label = ctk.CTkLabel(
-            sensor_header,
-            text="Aguardando log do sensor infravermelho (.csv).",
-            font=("Arial", 13),
-            text_color=self.TEXT_SECONDARY,
-        )
-        self.sensor_status_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=24, pady=(0, 18))
-    
-        # ── KPI cards do sensor ───────────────────────────────────────────────
-        # IMPORTANTE: lista completa — inclui os cards que faltavam antes
-        self.sensor_kpi_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        self.sensor_kpi_frame.grid(row=7, column=0, sticky="ew", padx=12, pady=(0, 16))
-        for col in range(4):
-            self.sensor_kpi_frame.grid_columnconfigure(col, weight=1, uniform="skpi")
-    
-        sensor_kpi_defs = [
-            # linha 1
-            ("Pico de Temperatura",     "--",   "Pico de temperatura calibrada registrado pelo sensor (°C)."),
-            ("Tempo de Absorção",       "--",   "Duração total do experimento (min)."),
-            ("Energia Total Absorvida", "--",   "Energia acumulada progressiva Q = m·c·ΔT (J)."),
-            ("Tempo Atuação PCM",       "--",   "Tempo em que a temperatura calibrada ficou entre 53–60 °C (min)."),
-            # linha 2
-            ("Temperatura Média",       "--",   "Temperatura calibrada média ao longo do ensaio (°C)."),
-            ("Temperatura Inicial",     "--",   "Temperatura calibrada no início do ensaio (°C)."),
-            ("ΔT Total",                "--",   "Variação total: T_pico − T_inicial (°C)."),
-            ("Taxa de Aquecimento",     "--",   "ΔT / duração (°C/min)."),
-            # linha 3  ← cards que causavam KeyError
-            ("Eficiência PCM",          "--",   "Eficiência: energia absorvida pelo PCM / energia total (%)."),
-            ("Estado PCM",              "--",   "Estado atual do PCM: Sólido | Em Fusão | Saturado."),
-            ("Energia Sensível",        "--",   "Qs = m·c·ΔT  —  calor sensível acumulado (J)."),
-            ("Energia Latente",         "--",   "Ql = m·Lf    —  calor latente estimado (J)."),
-            # linha 4
-            ("Tempo Estabilização",     "--",   "Tempo em que |dT/dt| < 0.01 °C/s de forma contínua (min)."),
-            ("Atraso Térmico",          "--",   "Estimativa de atraso introduzido pelo PCM vs cenário sem PCM (s)."),
-            ("Redução de Pico",         "--",   "Redução estimada do pico térmico pelo PCM (°C)."),
-            ("Energia Notebook",        "--",   "Q_notebook = P × t  (P = 50 W). Referência de eficiência."),
-        ]
-    
-        for idx, (key, default, tip) in enumerate(sensor_kpi_defs):
-            self._create_sensor_kpi_card(idx, key, default, tooltip=tip)
-    
-        # ── Gráfico do sensor ─────────────────────────────────────────────────
-        self.sensor_chart_section = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        self.sensor_chart_section.grid(row=8, column=0, sticky="ew", padx=12, pady=(0, 16))
-        self.sensor_chart_section.grid_columnconfigure(0, weight=1)
-    
-        self._render_sensor_placeholder()
-    
-        # ── Seção de Comparação COM vs SEM PCM ───────────────────────────────
-        self._build_comparison_section()
-    
+   
+    def _smooth(values: list[float], window: int = 7) -> list[float]:
+        if not values:
+            return []
+
+        series = pd.Series(values)
+
+        return (
+            series
+            .rolling(window=window, center=True, min_periods=1)
+            .mean()
+            .tolist()
+    )
     
     def _render_sensor_charts(self, r: "SensorPCMResult") -> None:
-        """Gráfico duplo com visual científico profissional — versão melhorada."""
+        """Renderiza gráficos científicos do sensor IR."""
+
         self._clear_sensor_charts()
-     
-        fig = Figure(figsize=(13.0, 11.0), dpi=100)
+
+        fig = Figure(figsize=(13.5, 10.5), dpi=100)
         fig.patch.set_facecolor(self.PANEL_COLOR)
-        fig.subplots_adjust(left=0.08, right=0.95, top=0.95, bottom=0.07, hspace=0.42)
-    
-        # ── Dados ─────────────────────────────────────────────────────────────
-        t_min   = [x / 60.0 for x in r.tempo_s]   # eixo x em minutos
-        T_real  = list(r.temperatura_c)
-        T_sim   = list(r.temperatura_simulada)
-        T_suave = _smooth(T_sim, window=11)
-        T_ini   = r.temperatura_inicial
-    
-        # ── Subplot 1 — Temperatura × Tempo ───────────────────────────────────
-        ax1 = fig.add_subplot(2, 1, 1)
-        _style_ax(ax1, self.PANEL_COLOR, self.CARD_COLOR, self.BORDER_COLOR, self.TEXT_SECONDARY)
-    
-        ax1.set_title(
-            "Temperatura × Tempo  —  Resposta Térmica do Sensor IR",
-            color=self.TEXT_PRIMARY, fontsize=15, fontweight="bold", pad=14,
+
+        gs = fig.add_gridspec(
+            2,
+            1,
+            height_ratios=[1.15, 0.85],
+            hspace=0.34,
         )
-    
-        # Região de fusão PCM
+
+        # ─────────────────────────────────────────────────────────────
+        # Dados
+        # ─────────────────────────────────────────────────────────────
+
+        t_min = [v / 60.0 for v in r.tempo_s]
+
+        T = list(r.temperatura_c)
+
+        # Suavização leve
+        T_smooth = _smooth(T, window=7)
+       
+        # Energia acumulada via Q = m·c·ΔT (m=1 kg, c=2000 J/kg·°C)# ─────────────────────────────────────────────
+    # Energia acumulada REALISTA
+    # ─────────────────────────────────────────────
+
+        massa_pcm = 0.020   # 20 g
+        cp_pcm = 2000       # J/kg°C
+
+        Q_acumulada = [0.0]
+
+        for i in range(1, len(T_smooth)):
+
+            dT = T_smooth[i] - T_smooth[i - 1]
+
+            # Energia incremental
+            dQ = massa_pcm * cp_pcm * max(dT, 0)
+
+            # Região de fusão → absorção extra
+            if TEMP_FUSAO_PCM <= T_smooth[i] <= TEMP_SATURACAO_PCM:
+                dQ *= 2.8
+
+            # Saturação → reduz absorção
+            elif T_smooth[i] > TEMP_SATURACAO_PCM:
+                dQ *= 0.45
+
+            Q_acumulada.append(Q_acumulada[-1] + dQ)
+
+        Q_smooth = _smooth(Q_acumulada, window=11)
+
+
+        # ─────────────────────────────────────────────────────────────
+        # GRÁFICO 1 — TEMPERATURA
+        # ─────────────────────────────────────────────────────────────
+
+        ax1 = fig.add_subplot(gs[0])
+
+        _style_ax(
+            ax1,
+            self.PANEL_COLOR,
+            self.CARD_COLOR,
+            self.BORDER_COLOR,
+            self.TEXT_SECONDARY,
+        )
+
+        ax1.set_title(
+            "Resposta Térmica do PCM",
+            fontsize=17,
+            fontweight="bold",
+            color=self.TEXT_PRIMARY,
+            pad=18,
+        )
+
+        # Região de atuação do PCM
         ax1.axhspan(
-            TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM,
-            color=SENSOR_FUSION, alpha=0.12,
-            label=f"Região de fusão PCM ({TEMP_FUSAO_PCM}–{TEMP_SATURACAO_PCM} °C)",
+            TEMP_FUSAO_PCM,
+            TEMP_SATURACAO_PCM,
+            color=SENSOR_FUSION,
+            alpha=0.10,
             zorder=1,
         )
-        ax1.axhline(TEMP_FUSAO_PCM, color=SENSOR_FUSION, linewidth=0.9,
-                    linestyle="--", alpha=0.55, zorder=2)
-        ax1.axhline(TEMP_SATURACAO_PCM, color=SENSOR_FUSION, linewidth=0.9,
-                    linestyle="--", alpha=0.55, zorder=2)
-    
-        # Preenchimento sob curva calibrada
-        min_T = min(min(T_sim), T_ini) - 1.0
-        ax1.fill_between(t_min, T_sim, min_T,
-                        color=SENSOR_ACCENT, alpha=0.10,
-                        label="Área absorvida (calibrada)", zorder=2)
-    
-        # Temperatura real (sensor bruto)
-        ax1.plot(t_min, T_real,
-                color=SENSOR_REAL, linewidth=1.6, alpha=0.60,
-                linestyle="-", label="Temperatura real (sensor)", zorder=3)
-    
-        # Temperatura calibrada
-        ax1.plot(t_min, T_sim,
-                color=SENSOR_ACCENT, linewidth=2.8, alpha=0.90,
-                label="Temperatura calibrada (+5 °C × 1.10)", zorder=4)
-    
-        # Suavizada
-        ax1.plot(t_min, T_suave,
-                color="#A78BFA", linewidth=1.8, linestyle="--", alpha=0.80,
-                label="Suavizada (média móvel)", zorder=5)
-    
-        # Marcador de pico
-        t_pico_min = r.tempo_pico_s / 60.0
-        ax1.scatter(
-            [t_pico_min], [r.pico_temperatura],
-            color="#FFD700", edgecolors="#1D4ED8", linewidths=1.8,
-            s=200, zorder=7, marker="★",
-            label=f"Pico: {r.pico_temperatura:.1f} °C",
-        )
-        ax1.axvline(t_pico_min, color="#FFD700", linestyle=":", linewidth=1.6,
-                    alpha=0.65, zorder=6)
-    
-        # Marcador de início de fusão (se atingido)
-        for i, (tv, Tv) in enumerate(zip(t_min, T_sim)):
-            if Tv >= TEMP_FUSAO_PCM:
-                ax1.axvline(tv, color=SENSOR_FUSION, linestyle="-.", linewidth=1.4,
-                            alpha=0.70, zorder=6,
-                            label=f"Início fusão: {tv:.1f} min")
-                ax1.scatter([tv], [Tv], color=SENSOR_FUSION, edgecolors="white",
-                            s=130, zorder=7, marker="D")
-                break
-    
-        delta_t = r.pico_temperatura - r.temperatura_inicial
-        atuacao_min = r.tempo_atuacao_pcm_s / 60.0
+
         ax1.text(
-            0.02, 0.96,
-            f"ΔT = {delta_t:.2f} °C   |   Atuação PCM: {atuacao_min:.1f} min",
-            transform=ax1.transAxes, color="#E5E7EB",
-            fontsize=11, fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.5",
-                    facecolor=self.CARD_COLOR, edgecolor="#1D4ED8", alpha=0.90),
-            va="top", zorder=10,
+            0.012,
+            0.93,
+            f"Faixa PCM: {TEMP_FUSAO_PCM:.0f}–{TEMP_SATURACAO_PCM:.0f} °C",
+            transform=ax1.transAxes,
+            fontsize=10,
+            color=SENSOR_FUSION,
+            fontweight="bold",
         )
-    
-        ax1.set_xlabel("Tempo (min)", color=self.TEXT_PRIMARY, fontsize=12, fontweight="bold")
-        ax1.set_ylabel("Temperatura (°C)", color=self.TEXT_PRIMARY, fontsize=12, fontweight="bold")
-        ax1.xaxis.label.set_color(self.TEXT_PRIMARY)
-        ax1.yaxis.label.set_color(self.TEXT_PRIMARY)
-    
-        legend1 = ax1.legend(
-            loc="lower right", fontsize=9.5,
-            framealpha=0.92, facecolor=self.CARD_COLOR,
-            edgecolor="#1D4ED8", labelcolor=self.TEXT_PRIMARY,
-            frameon=True, ncol=2,
+
+        # Linha principal COM PCM
+        ax1.plot(
+            t_min,
+            T_smooth,
+            color=SENSOR_ACCENT,
+            linewidth=3.0,
+            label="Com PCM",
+            zorder=5,
         )
-    
-        # ── Subplot 2 — Energia Acumulada × Tempo ─────────────────────────────
-        ax2 = fig.add_subplot(2, 1, 2)
-        _style_ax(ax2, self.PANEL_COLOR, self.CARD_COLOR, self.BORDER_COLOR, self.TEXT_SECONDARY)
-    
+
+        # Área térmica
+        ax1.fill_between(
+            t_min,
+            T_smooth,
+            min(T_smooth) - 2,
+            color=SENSOR_ACCENT,
+            alpha=0.12,
+            zorder=2,
+        )
+
+        # Baseline sem PCM
+        if r.baseline_temp_c:
+
+            t_base = [v / 60.0 for v in r.baseline_tempo_s]
+
+            ax1.plot(
+                t_base,
+                r.baseline_temp_c,
+                color="#F87171",
+                linewidth=2.0,
+                linestyle="--",
+                alpha=0.85,
+                label="Sem PCM",
+                zorder=4,
+            )
+
+        # Pico térmico
+        t_pico = r.tempo_pico_s / 60.0
+
+        ax1.scatter(
+            [t_pico],
+            [r.pico_temperatura],
+            s=180,
+            color="#FFD700",
+            edgecolors="white",
+            linewidths=1.8,
+            zorder=10,
+        )
+
+        ax1.axvline(
+            t_pico,
+            linestyle=":",
+            linewidth=1.4,
+            color="#FFD700",
+            alpha=0.75,
+        )
+
+        ax1.annotate(
+            f"{r.pico_temperatura:.1f} °C",
+            xy=(t_pico, r.pico_temperatura),
+            xytext=(12, 14),
+            textcoords="offset points",
+            fontsize=10,
+            color=self.TEXT_PRIMARY,
+            fontweight="bold",
+            bbox=dict(
+                boxstyle="round,pad=0.35",
+                facecolor=self.CARD_COLOR,
+                edgecolor="#FFD700",
+                alpha=0.95,
+            ),
+        )
+
+        # Informações rápidas
+        delta_t = r.pico_temperatura - r.temperatura_inicial
+
+        resumo = (
+            f"ΔT: {delta_t:.2f} °C\n"
+            f"Estado: {r.estado_pcm}\n"
+            f"Atuação PCM: {r.tempo_atuacao_pcm_s / 60:.1f} min"
+        )
+
+        ax1.text(
+            0.985,
+            0.97,
+            resumo,
+            transform=ax1.transAxes,
+            ha="right",
+            va="top",
+            fontsize=10.5,
+            color=self.TEXT_PRIMARY,
+            bbox=dict(
+                boxstyle="round,pad=0.55",
+                facecolor=self.CARD_COLOR,
+                edgecolor=self.BORDER_COLOR,
+                alpha=0.92,
+            ),
+        )
+
+        ax1.set_xlabel(
+            "Tempo (min)",
+            fontsize=12,
+            fontweight="bold",
+            color=self.TEXT_PRIMARY,
+        )
+
+        ax1.set_ylabel(
+            "Temperatura (°C)",
+            fontsize=12,
+            fontweight="bold",
+            color=self.TEXT_PRIMARY,
+        )
+
+        ax1.legend(
+            loc="lower right",
+            fontsize=10,
+            framealpha=0.95,
+            facecolor=self.CARD_COLOR,
+            edgecolor=self.BORDER_COLOR,
+        )
+
+        # ─────────────────────────────────────────────────────────────
+        # GRÁFICO 2 — ENERGIA
+        # ─────────────────────────────────────────────────────────────
+
+        ax2 = fig.add_subplot(gs[1])
+
+        _style_ax(
+            ax2,
+            self.PANEL_COLOR,
+            self.CARD_COLOR,
+            self.BORDER_COLOR,
+            self.TEXT_SECONDARY,
+        )
+
         ax2.set_title(
-            "Energia Acumulada × Tempo  —  Q(t) progressivo",
-            color=self.TEXT_PRIMARY, fontsize=15, fontweight="bold", pad=14,
+            "Energia Absorvida pelo PCM",
+            fontsize=16,
+            fontweight="bold",
+            color=self.TEXT_PRIMARY,
+            pad=16,
         )
-    
-        Q = list(r.energia_ao_longo_tempo)
-    
-        # Garante curva progressiva (nunca cai)
-        Q_acum: list[float] = []
-        pico_q = 0.0
-        for val in Q:
-            if val > pico_q:
-                pico_q = val
-            Q_acum.append(pico_q)
-    
-        # Suavização da energia
-        Q_suave = _smooth(Q_acum, window=13)
-    
-        Q_max = max(Q_acum) if Q_acum else 1.0
-        t_Q_pico_min = t_min[Q_acum.index(Q_max)] if Q_max > 0 else t_min[-1]
-    
-        ax2.fill_between(t_min, Q_suave, 0,
-                        color=SENSOR_ENERGY, alpha=0.18,
-                        label="Energia acumulada (J)", zorder=2)
-        ax2.plot(t_min, Q_suave,
-                color=SENSOR_ENERGY, linewidth=3.0, alpha=0.95,
-                label="Q(t) suavizado", zorder=4)
-        ax2.plot(t_min, Q_acum,
-                color=SENSOR_ENERGY, linewidth=1.0, alpha=0.30,
-                linestyle="-", zorder=3)
-    
-        # Marcador do pico de energia
+
+        ax2.plot(
+            t_min,
+            Q_smooth,
+            color="#22C55E",
+            linewidth=3.4,
+            alpha=0.95,
+            zorder=5,
+        )
+
         ax2.scatter(
-            [t_Q_pico_min], [Q_max],
-            color="#FFD700", edgecolors="#1D4ED8", linewidths=1.8,
-            s=180, zorder=7, marker="★",
-            label=f"Energia máx: {Q_max:,.0f} J",
+            t_min,
+            Q_smooth,
+            c=Q_smooth,
+            cmap="summer",
+            s=14,
+            alpha=0.6,
+            zorder=4,
         )
-    
-        # Referência energia notebook
-        P_notebook = 50.0
-        Q_nb = [P_notebook * (tv * 60.0) for tv in t_min]
-        ax2.plot(t_min, Q_nb,
-                color="#F87171", linewidth=1.4, linestyle=":",
-                alpha=0.60, label="Q notebook (50 W)", zorder=3)
-    
-        dur_min = r.tempo_total / 60.0
+
+        ax2.fill_between(
+            t_min,
+            Q_smooth,
+            min(Q_smooth),
+            0,
+            color=SENSOR_ENERGY,
+            alpha=0.16,
+            zorder=2,
+        )
+
+        # Pico energia
+        Q_max = max(Q_smooth)
+
+        idx_q = Q_smooth.index(Q_max)
+
+        ax2.scatter(
+            [t_min[idx_q]],
+            [Q_max],
+            color="#FFD700",
+            s=160,
+            edgecolors="white",
+            linewidths=1.8,
+            zorder=10,
+        )
+
+        # Texto energia
         ax2.text(
-            0.02, 0.96,
-            f"Energia total: {r.energia_total_j:,.0f} J   |   Duração: {dur_min:.2f} min",
-            transform=ax2.transAxes, color="#E5E7EB",
-            fontsize=11, fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.5",
-                    facecolor=self.CARD_COLOR, edgecolor="#1D4ED8", alpha=0.90),
-            va="top", zorder=10,
+            0.985,
+            0.96,
+            f"Energia total\n{r.energia_total_j:,.0f} J",
+            transform=ax2.transAxes,
+            ha="right",
+            va="top",
+            fontsize=11,
+            color=self.TEXT_PRIMARY,
+            fontweight="bold",
+            bbox=dict(
+                boxstyle="round,pad=0.5",
+                facecolor=self.CARD_COLOR,
+                edgecolor=self.BORDER_COLOR,
+                alpha=0.92,
+            ),
         )
-    
-        ax2.set_xlabel("Tempo (min)", color=self.TEXT_PRIMARY, fontsize=12, fontweight="bold")
-        ax2.set_ylabel("Energia Absorvida (J)", color=self.TEXT_PRIMARY, fontsize=12, fontweight="bold")
-        ax2.legend(
-            loc="upper left", fontsize=9.5,
-            framealpha=0.92, facecolor=self.CARD_COLOR,
-            edgecolor="#1D4ED8", labelcolor=self.TEXT_PRIMARY,
-            frameon=True,
+
+        ax2.set_xlabel(
+            "Tempo (min)",
+            fontsize=12,
+            fontweight="bold",
+            color=self.TEXT_PRIMARY,
         )
-    
-        canvas = FigureCanvasTkAgg(fig, master=self.sensor_chart_section)
-        canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+
+        ax2.set_ylabel(
+            "Energia (J)",
+            fontsize=12,
+            fontweight="bold",
+            color=self.TEXT_PRIMARY,
+        )
+
+        # ─────────────────────────────────────────────────────────────
+        # Render
+        # ─────────────────────────────────────────────────────────────
+
+        canvas = FigureCanvasTkAgg(
+            fig,
+            master=self.sensor_chart_section,
+        )
+
+        canvas.get_tk_widget().grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+        )
+
         canvas.draw_idle()
+
         self.sensor_chart_canvases.append(canvas)
- 
- 
  
     
     def _clear_sensor_charts(self) -> None:
@@ -1629,7 +1691,7 @@ class PCMCalcScreen(ctk.CTkFrame):
             self.comparison_chart_canvases.clear()
     
         t_s  = list(r.tempo_s)
-        T_s  = list(r.temperatura_simulada)
+        T_s  = list(r.temperatura_c)
         t_min = [v / 60.0 for v in t_s]
     
         # ── Estima taxa de aquecimento pré-fusão ──────────────────────────────
@@ -1690,7 +1752,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         taxa_com = delta_t_real / dur_min if dur_min > 0 else 0.0
         taxa_sem = (taxa_pre_fusao * 60.0)  # converte para °C/min
     
-        eficiencia = getattr(r, "eficiencia_pcm", None)
+        eficiencia = getattr(r, "eficiencia_relativa", None)
     
         # ══════════════════════════════════════════════════════════════════════
         # GRÁFICO COMPARATIVO

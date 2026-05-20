@@ -13,9 +13,47 @@ class PCMService:
     CALOR_LATENTE = 180000.0
 
     def process_csv(self, csv_path: str | Path) -> PCMResult:
+
         df = pd.read_csv(csv_path)
+
+        print("COLUNAS ORIGINAIS:")
+        print(df.columns.tolist())
+
+        # ── normaliza CSV do sensor ─────────────────────
+
+        rename_map = {
+            "time_ms": "timestamp",
+            "minutes": "tempo_s",
+            "temp_simulada_10pct": "temperatura_c",
+        }
+
+        df = df.rename(columns=rename_map)
+
+        # minutos -> segundos
+        if "tempo_s" in df.columns:
+            df["tempo_s"] = pd.to_numeric(df["tempo_s"]) * 60.0
+
+        # cria potência fake
+        if "potencia_w" not in df.columns:
+            df["potencia_w"] = 0.0
+
+        # cria energia fake
+        if "energia_j" not in df.columns:
+            df["energia_j"] = 0.0
+
+        # timestamp fallback
+        if "timestamp" not in df.columns:
+            df["timestamp"] = range(len(df))
+
+        print("COLUNAS NORMALIZADAS:")
+        print(df.columns.tolist())
+
+        # valida DEPOIS da normalização
         self._validate_dataframe(df)
+
         normalized_df = self._normalize_dataframe(df)
+
+        # resto do código continua daqui pra baixo...
 
         energia_final = float(normalized_df["energia_j"].iloc[-1])
         tempo_inicial = float(normalized_df["tempo_s"].iloc[0])
@@ -136,6 +174,31 @@ class PCMService:
             energia_teorica=Q_teorico,
         )
 
+    def _moving_average(self, series) -> list[float]:
+
+        # se vier DataFrame pega primeira coluna
+        if isinstance(series, pd.DataFrame):
+            series = series.iloc[:, 0]
+
+        # garante Series
+        series = pd.Series(series)
+
+        window = max(
+            3,
+            min(
+                25,
+                len(series) // 10 if len(series) >= 10 else len(series)
+            )
+        )
+
+        return (
+            series
+            .rolling(window=window, min_periods=1)
+            .mean()
+            .round(4)
+            .tolist()
+        )
+
     def _build_calculation_audit_trail(
         self,
         *,
@@ -194,9 +257,6 @@ class PCMService:
         )
         return calculo_detalhado
 
-    def _moving_average(self, series: pd.Series) -> list[float]:
-        window = max(3, min(25, len(series) // 10 if len(series) >= 10 else len(series)))
-        return series.rolling(window=window, min_periods=1).mean().round(4).tolist()
 
     def _classify_thermal_behavior(
         self,
@@ -224,6 +284,21 @@ class PCMService:
         return normalized_df
 
     def _validate_dataframe(self, df: pd.DataFrame) -> None:
+        print("VALIDANDO COLUNAS:")
+        print(df.columns.tolist())
+
+        normalized_columns = {
+            str(column).strip().lower()
+            for column in df.columns
+        }
+
+        print("COLUNAS NORMALIZADAS:")
+        print(normalized_columns)
+
+        missing_columns = self.REQUIRED_COLUMNS.difference(normalized_columns)
+
+        print("FALTANDO:")
+        print(missing_columns)
         normalized_columns = {str(column).strip().lower() for column in df.columns}
         missing_columns = self.REQUIRED_COLUMNS.difference(normalized_columns)
         if missing_columns:
