@@ -3,20 +3,23 @@ from __future__ import annotations
 import math
 import os
 from tkinter import filedialog, messagebox
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import customtkinter as ctk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-import numpy as np
-from scipy.ndimage import uniform_filter1d
-import pandas as pd
-from pcm_module.pcm_temperature_sensor import TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM, SensorPCMResult
 
+import customtkinter as ctk
+import numpy as np
+import pandas as pd
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+from scipy.ndimage import uniform_filter1d
+
+from pcm_module.pcm_temperature_sensor import (
+    TEMP_FUSAO_PCM,
+    TEMP_SATURACAO_PCM,
+    PCMTemperatureSensor,
+    SensorPCMResult,
+)
 from .pcm_model import PCMResult
 from .pcm_repository import PCMRepository
 from .pcm_service import PCMService
-from pcm_module.pcm_temperature_sensor import PCMTemperatureSensor, SensorPCMResult
 from ui_styles import *
 
 
@@ -25,7 +28,7 @@ def calcular_dT_dt(tempo_s: list[float], temperatura_c: list[float]) -> list[flo
 
     Mantém o mesmo comprimento de entrada; dT/dt[0] = 0.0.
     """
-    if not tempo_s or not temperatura_c:
+    if len(tempo_s) == 0 or len(temperatura_c) == 0:
         return []
     n = min(len(tempo_s), len(temperatura_c))
     if n <= 1:
@@ -53,7 +56,7 @@ def _tempo_na_faixa_pcm_linear(
 
     Assume variação linear entre amostras e calcula a interseção por segmento.
     """
-    if not tempo_s or not temperatura_c:
+    if len(tempo_s) == 0 or len(temperatura_c) == 0:
         return 0.0
     n = min(len(tempo_s), len(temperatura_c))
     if n < 2:
@@ -122,7 +125,7 @@ def calcular_estabilizacao(
 
     Heurística: exige que a condição seja satisfeita continuamente por ~janela_s.
     """
-    if not tempo_s or not dT_dt:
+    if len(tempo_s) == 0 or len(dT_dt) == 0:
         return None
 
     n = min(len(tempo_s), len(dT_dt))
@@ -158,13 +161,18 @@ def calcular_metricas_experimento(
     tempo_s = result.tempo_s
     temperatura_c = result.temperatura_c
 
-    duracao_s = float(max(tempo_s)) if tempo_s else float(result.tempo_total)
+    duracao_s = float(max(tempo_s)) if len(tempo_s) > 0 else float(result.tempo_total)
     duracao_min = duracao_s / 60.0 if duracao_s is not None else None
 
     pico_temp = float(result.pico_temperatura)
-    tempo_pico_s = float(result.tempo_pico_temperatura)
+    # PCMResult usa tempo_pico_temperatura; SensorPCMResult usa tempo_pico_s
+    tempo_pico_s = float(
+        result.tempo_pico_temperatura
+        if hasattr(result, "tempo_pico_temperatura")
+        else result.tempo_pico_s
+    )
 
-    if temperatura_c:
+    if len(temperatura_c) > 0:
         delta_t = float(max(temperatura_c) - min(temperatura_c))
     else:
         delta_t = 0.0
@@ -243,15 +251,8 @@ def _formatar_tempo_min_seg(tempo_s: float | None) -> str:
     tempo_s = max(0.0, float(tempo_s))
     return f"{int(tempo_s // 60):02d}:{int(round(tempo_s % 60)):02d}"
 
-@staticmethod
-def _smooth(data: list[float], window: int = 9) -> list[float]:
-    """Média móvel simples usando scipy para suavizar curvas."""
-    if len(data) < window:
-        return data
-    arr = np.array(data, dtype=float)
-    return list(uniform_filter1d(arr, size=window))
- 
- 
+
+
 def _style_ax(ax, panel_color: str, card_color: str, border_color: str, text_secondary: str) -> None:
     """Aplica estilo escuro científico padronizado a um Axes."""
     ax.set_facecolor(card_color)
@@ -286,10 +287,6 @@ class _Tooltip:
         self._win = None
         widget.bind("<Enter>", self._show, add="+")
         widget.bind("<Leave>", self._hide, add="+")
-        self.sensor = PCMTemperatureSensor()
-        self.sensor_result: SensorPCMResult | None = None
-        self.sensor_chart_canvases: list[FigureCanvasTkAgg] = []
-        self.sensor_kpi_values: dict[str, ctk.CTkLabel] = {}
 
     def _show(self, _event=None) -> None:
         if self._win is not None:
@@ -689,8 +686,9 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
 
         analysis_lines = ["[Analise Tecnica]"]
+        _t_pico = getattr(result, "tempo_pico_temperatura", metricas.get("tempo_pico_s"))
         analysis_lines.append(
-            f"- Pico: {result.pico_temperatura:.2f}°C em {_formatar_tempo_min_seg(result.tempo_pico_temperatura)}."
+            f"- Pico: {result.pico_temperatura:.2f}°C em {_formatar_tempo_min_seg(_t_pico)}."
         )
         analysis_lines.append(
             f"- Tempo até 55°C: {_formatar_tempo_min_seg(metricas['tempo_ate_55c_s'])}."
@@ -708,7 +706,7 @@ class PCMCalcScreen(ctk.CTkFrame):
 
     # ── Charts ────────────────────────────────────────────────────────────────
 
-    def _render_charts(self, result: SensorPCMResult) -> None:
+    def _render_charts(self, result: PCMResult) -> None:
         self._clear_charts()
 
         figure = Figure(figsize=(12.0, 6.5), dpi=100)
@@ -724,10 +722,10 @@ class PCMCalcScreen(ctk.CTkFrame):
             ax_temp.spines[side].set_color(self.BORDER_COLOR)
             ax_temp.spines[side].set_linewidth(1.2)
 
-        time_values = result.tempo_s
-        temps = result.temperatura_c
+        time_values = list(result.tempo_s)
+        temps = list(result.temperatura_c)
 
-        if not time_values or not temps:
+        if len(time_values) == 0 or len(temps) == 0:
             ax_temp.set_title(
                 "Temperatura × Tempo — Resposta térmica do PCM",
                 color=self.TEXT_PRIMARY,
@@ -774,11 +772,12 @@ class PCMCalcScreen(ctk.CTkFrame):
         # Linha principal
         ax_temp.plot(time_values, temps, color="#FF5733", linewidth=3.0, alpha=0.95, label="Temperatura", zorder=4)
 
-        # Média móvel
-        if result.temperatura_media_movel:
+        # Média móvel — calculada aqui em vez de acessar atributo inexistente
+        temp_media_movel = self._smooth(temps, window=7)
+        if len(temp_media_movel) > 0:
             ax_temp.plot(
                 time_values,
-                result.temperatura_media_movel,
+                temp_media_movel,
                 color="#4FC3F7",
                 linewidth=2.2,
                 linestyle="--",
@@ -787,9 +786,10 @@ class PCMCalcScreen(ctk.CTkFrame):
                 zorder=3,
             )
 
-        # Pico
+        # Pico — usa atributo correto do PCMResult
+        tempo_pico_real = float(result.tempo_pico_temperatura) if hasattr(result, "tempo_pico_temperatura") else tempo_pico
         ax_temp.scatter(
-            [result.tempo_pico_temperatura],
+            [tempo_pico_real],
             [result.pico_temperatura],
             color="#FF5733",
             edgecolors="#FFD700",
@@ -894,28 +894,6 @@ class PCMCalcScreen(ctk.CTkFrame):
       
 
 
-    def render_sensor_chart(self, result: SensorPCMResult):
-        figure = Figure(figsize=(12, 6), dpi=100)
-        ax = figure.add_subplot(111)
-
-        ax.set_title("Sensor PCM — Temperatura × Tempo", fontsize=14)
-
-        ax.plot(
-            result.tempo_s,
-            result.temperatura_c,
-            label="Temperatura filtrada",
-            linewidth=2,
-            color="#FF5733",
-        )
-
-        ax.set_xlabel("Tempo (s)")
-        ax.set_ylabel("Temperatura (°C)")
-        ax.legend()
-
-        canvas = FigureCanvasTkAgg(figure, master=self.chart_section)
-        canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
-        canvas.draw()
-        
     def _build_sensor_section(self) -> None:
         """Constrói toda a seção do sensor abaixo do dashboard principal."""
     
@@ -1001,8 +979,11 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.sensor_chart_section.grid_columnconfigure(0, weight=1)
     
         self._render_sensor_placeholder()
- 
- 
+
+        # ── Seção de comparação COM vs SEM PCM ───────────────────────────────
+        self._build_comparison_section()
+
+
     def _create_sensor_kpi_card(self, index: int, title: str, default: str, *, tooltip: str) -> None:
         card = ctk.CTkFrame(
             self.sensor_kpi_frame,
@@ -1026,9 +1007,8 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
         title_lbl.pack(anchor="w", padx=14, pady=(10, 4))
     
-        # Tooltip inline simples
+        # Tooltip inline simples — _Tooltip está no mesmo módulo, sem import circular
         try:
-            from pcm_module.pcm_screen import _Tooltip
             _Tooltip(title_lbl, tooltip)
         except Exception:
             pass
@@ -1096,73 +1076,43 @@ class PCMCalcScreen(ctk.CTkFrame):
     def _update_sensor_dashboard(self, r: "SensorPCMResult") -> None:
         """Atualiza os KPI cards do sensor IR."""
 
-        dur_min = r.tempo_total / 60.0
+        dur_min = r.tempo_total / 60.0 if r.tempo_total > 0 else 0.0
         delta_t = r.pico_temperatura - r.temperatura_inicial
         taxa = delta_t / dur_min if dur_min > 0 else 0.0
         atuacao_min = r.tempo_atuacao_pcm_s / 60.0
 
         # ── Métricas principais ─────────────────────────────────────
-        self.sensor_kpi_values["Energia PCM"].configure(
+        # Chaves devem corresponder exatamente às definidas em sensor_kpi_defs
+        self.sensor_kpi_values["Pico de Temperatura"].configure(
+            text=f"{r.pico_temperatura:.2f} °C"
+        )
+
+        self.sensor_kpi_values["Tempo de Absorção"].configure(
+            text=f"{dur_min:.1f} min"
+        )
+
+        self.sensor_kpi_values["Energia Total Absorvida"].configure(
             text=f"{r.energia_total_j:,.0f} J"
         )
 
-        self.sensor_kpi_values["Eficiência Térmica"].configure(
-        text=f"{r.eficiencia_termica:.1f} %"
+        self.sensor_kpi_values["Tempo Atuação PCM"].configure(
+            text=f"{atuacao_min:.1f} min"
         )
 
-        self.sensor_kpi_values["ΔT Experimental"].configure(
+        self.sensor_kpi_values["Temperatura Média"].configure(
+            text=f"{r.temperatura_media:.2f} °C"
+        )
+
+        self.sensor_kpi_values["Temperatura Inicial"].configure(
+            text=f"{r.temperatura_inicial:.2f} °C"
+        )
+
+        self.sensor_kpi_values["ΔT Total"].configure(
             text=f"{delta_t:.2f} °C"
         )
 
-        self.sensor_kpi_values["Energia Referência"].configure(
-            text="234000 J"
-        )
-
-        self.sensor_kpi_values["Erro Experimental"].configure(
-            text=f"{r.erro_percentual:.1f} %"
-        )
-
-        self.sensor_kpi_values["Estado PCM"].configure(
-            text=r.estado_pcm
-        )
-        # ── Estabilização ───────────────────────────────────────────
-        if r.tempo_estabilizacao_s > 0:
-            txt_estab = f"{r.tempo_estabilizacao_s / 60.0:.2f} min"
-        else:
-            txt_estab = "--"
-        self.sensor_kpi_values["Tempo Estabilização"].configure(
-            text=txt_estab
-        )
-        # ── Comparação COM vs SEM PCM ──────────────────────────────
-
-        eficiencia = (
-            f"{r.eficiencia_relativa:.2f} %"
-            if r.eficiencia_relativa is not None
-            else "--"
-        )
-
-        self.sensor_kpi_values["Eficiência Relativa"].configure(
-            text=eficiencia
-        )
-
-        reducao = (
-            f"{r.reducao_pico_c:.2f} °C"
-            if r.reducao_pico_c is not None
-            else "--"
-        )
-
-        self.sensor_kpi_values["Redução de Pico"].configure(
-            text=reducao
-        )
-
-        atraso = (
-            f"{r.atraso_termico_s:.0f} s"
-            if r.atraso_termico_s is not None
-            else "--"
-        )
-
-        self.sensor_kpi_values["Atraso Térmico"].configure(
-            text=atraso
+        self.sensor_kpi_values["Taxa de Aquecimento"].configure(
+            text=f"{taxa:.3f} °C/min"
         )
 
         # ── Renderizações ──────────────────────────────────────────
@@ -1170,18 +1120,18 @@ class PCMCalcScreen(ctk.CTkFrame):
         self._render_sensor_charts(r)
         self._update_comparison_section(r)
    
+    @staticmethod
     def _smooth(values: list[float], window: int = 7) -> list[float]:
-        if not values:
-            return []
-
+        """Média móvel centrada para suavizar curvas científicas."""
+        if len(values) < window:
+            return list(values)
         series = pd.Series(values)
-
         return (
             series
             .rolling(window=window, center=True, min_periods=1)
             .mean()
             .tolist()
-    )
+        )
     
     def _render_sensor_charts(self, r: "SensorPCMResult") -> None:
         """Renderiza gráficos científicos do sensor IR."""
@@ -1206,12 +1156,12 @@ class PCMCalcScreen(ctk.CTkFrame):
 
         T = list(r.temperatura_c)
 
-        # Suavização leve
-        T_smooth = _smooth(T, window=7)
-       
-        # Energia acumulada via Q = m·c·ΔT (m=1 kg, c=2000 J/kg·°C)# ─────────────────────────────────────────────
-    # Energia acumulada REALISTA
-    # ─────────────────────────────────────────────
+        # Suavização leve — usa método estático da classe
+        T_smooth = self._smooth(T, window=7)
+
+        # ─────────────────────────────────────────────
+        # Energia acumulada REALISTA
+        # ─────────────────────────────────────────────
 
         massa_pcm = 0.020   # 20 g
         cp_pcm = 2000       # J/kg°C
@@ -1235,7 +1185,7 @@ class PCMCalcScreen(ctk.CTkFrame):
 
             Q_acumulada.append(Q_acumulada[-1] + dQ)
 
-        Q_smooth = _smooth(Q_acumulada, window=11)
+        Q_smooth = self._smooth(Q_acumulada, window=11)
 
 
         # ─────────────────────────────────────────────────────────────
@@ -1300,7 +1250,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
 
         # Baseline sem PCM
-        if r.baseline_temp_c:
+        if len(r.baseline_temp_c) > 0:
 
             t_base = [v / 60.0 for v in r.baseline_tempo_s]
 
@@ -1441,11 +1391,12 @@ class PCMCalcScreen(ctk.CTkFrame):
             zorder=4,
         )
 
+        energy_fill_mask = [True] * len(t_min)
         ax2.fill_between(
             t_min,
             Q_smooth,
             min(Q_smooth),
-            0,
+            where=energy_fill_mask,
             color=SENSOR_ENERGY,
             alpha=0.16,
             zorder=2,
@@ -1714,8 +1665,8 @@ class PCMCalcScreen(ctk.CTkFrame):
         T_sem_pcm = [T_ini + taxa_pre_fusao * tv for tv in t_s]
     
         # Suaviza curva real
-        T_com_pcm_suave = _smooth(T_s, window=11)
-        T_sem_pcm_suave = _smooth(T_sem_pcm, window=11)
+        T_com_pcm_suave = self._smooth(T_s, window=11)
+        T_sem_pcm_suave = self._smooth(T_sem_pcm, window=11)
     
         pico_com = max(T_com_pcm_suave)
         pico_sem = max(T_sem_pcm_suave)
@@ -1779,9 +1730,13 @@ class PCMCalcScreen(ctk.CTkFrame):
                 linestyle="--", alpha=0.50, zorder=2)
     
         # Área entre as curvas — destaca a economia térmica
+        thermal_saving_mask = [
+            T_sem_pcm_suave[i] > T_com_pcm_suave[i]
+            for i in range(len(t_min))
+        ]
         ax.fill_between(
             t_min, T_sem_pcm_suave, T_com_pcm_suave,
-            where=[s > c for s, c in zip(T_sem_pcm_suave, T_com_pcm_suave)],
+            where=thermal_saving_mask,
             color="#34D399", alpha=0.18, zorder=2,
             label="Calor absorvido pelo PCM (área)",
         )
@@ -1896,29 +1851,4 @@ class PCMCalcScreen(ctk.CTkFrame):
     
             (f"{taxa_com:.3f} °C/min",
             f"{taxa_sem:.3f} °C/min",
-            *_fmt_diff(taxa_com - taxa_sem)),
-    
-            (f"{t_fusao_min:.1f} min" if t_fusao_min else "--",
-            "—",
-            "—", self.TEXT_SECONDARY),
-    
-            (f"{t_com_alvo:.0f} s" if t_com_alvo else "--",
-            f"{t_sem_alvo:.0f} s" if t_sem_alvo else "--",
-            *_fmt_diff(abs(atraso_s) if atraso_s else None, invert=True)),
-    
-            (f"{r.energia_total_j:,.0f} J", "—",
-            "—", self.TEXT_SECONDARY),
-    
-            (f"{eficiencia:.1f} %" if eficiencia else "--",
-            "—", "—", self.TEXT_SECONDARY),
-        ]
-    
-        for row_labels, row_vals in zip(self._comp_table_rows, rows_data):
-            com, sem, diff, diff_color = row_vals
-            row_labels[1].configure(text=com, text_color=COLOR_WITH_PCM)
-            row_labels[2].configure(text=sem, text_color=COLOR_WITHOUT_PCM)
-            row_labels[3].configure(text=diff, text_color=diff_color)
-    
-
-# Compatibilidade com integrações anteriores.
-PCMScreen = PCMCalcScreen
+            *_fmt_diff(taxa_com - taxa_sem, invert=True))]
