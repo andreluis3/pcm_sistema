@@ -33,6 +33,25 @@ PAD_GAP = 18
 PAD_CARD = 10          # padding interno dos cards
 # padding externo entre cards
 
+# ui_styles.py para o pcm
+SENSOR_ACCENT  = "#38BDF8"
+SENSOR_FUSION  = "#A78BFA"
+SENSOR_ENERGY  = "#22C55E"
+COLOR_WITH_PCM    = "#38BDF8"
+COLOR_WITHOUT_PCM = "#F87171"
+# =========================================================
+# SENSOR / PCM COLORS
+# =========================================================
+
+BG_SENSOR = "#0B0F16"
+
+SENSOR_ACCENT = "#38BDF8"
+SENSOR_FUSION = "#A78BFA"
+SENSOR_ENERGY = "#22C55E"
+
+COLOR_WITH_PCM = "#38BDF8"
+COLOR_WITHOUT_PCM = "#F87171"
+CARD_BORDER_SENSOR = "#334155"
 # Legacy aliases (keep for backward compatibility)
 FONT_SUBTITLE = FONT_TITLE
 FONT_SIDEBAR = FONT_NORMAL
@@ -156,3 +175,117 @@ def button_style(variant: str = "primary") -> dict:
 
 def make_button(parent, text: str, *, variant: str = "primary", **kwargs):
     return ctk.CTkButton(parent, text=text, **button_style(variant), **kwargs)
+
+
+import customtkinter as ctk
+
+def style_ax_dark(
+    ax,
+    *,
+    card_color="#0F172A",
+    border_color="#334155",
+    text_color="#9CA3AF",
+):
+    """
+    Estilo científico escuro padronizado para matplotlib.
+    """
+
+    ax.set_facecolor(card_color)
+
+    ax.tick_params(
+        colors=text_color,
+        labelsize=11,
+        length=4,
+        width=1.2,
+    )
+
+    ax.tick_params(axis="x", pad=6)
+    ax.tick_params(axis="y", pad=4)
+
+    ax.grid(
+        True,
+        linestyle="--",
+        linewidth=0.55,
+        alpha=0.30,
+        color="#475569",
+    )
+
+    ax.minorticks_on()
+
+    ax.grid(
+        True,
+        which="minor",
+        linestyle=":",
+        linewidth=0.3,
+        alpha=0.15,
+        color="#334155",
+    )
+
+    for side in ["top", "right"]:
+        ax.spines[side].set_visible(False)
+
+    for side in ["bottom", "left"]:
+        ax.spines[side].set_color(border_color)
+        ax.spines[side].set_linewidth(1.4)
+
+
+class Tooltip:
+    def __init__(self, widget, text: str) -> None:
+        self.widget = widget
+        self.text = text
+        self._win = None
+
+        widget.bind("<Enter>", self._show, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+
+    def _show(self, _event=None) -> None:
+
+        if self._win is not None:
+            return
+
+        try:
+            x = self.widget.winfo_rootx() + 14
+            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 10
+
+        except Exception:
+            return
+
+        win = ctk.CTkToplevel(self.widget)
+
+        win.overrideredirect(True)
+
+        try:
+            win.attributes("-topmost", True)
+        except Exception:
+            pass
+
+        win.geometry(f"+{x}+{y}")
+
+        frame = ctk.CTkFrame(
+            win,
+            fg_color="#0B0F16",
+            corner_radius=10,
+            border_width=1,
+            border_color="#334155",
+        )
+
+        frame.pack(fill="both", expand=True)
+
+        ctk.CTkLabel(
+            frame,
+            text=self.text,
+            font=("Arial", 12),
+            text_color="#F3F4F6",
+            justify="left",
+            wraplength=360,
+        ).pack(padx=12, pady=10)
+
+        self._win = win
+
+    def _hide(self, _event=None) -> None:
+
+        if self._win is None:
+            return
+
+        self._win.destroy()
+        self._win = None

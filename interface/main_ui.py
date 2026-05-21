@@ -13,7 +13,8 @@ from services.hybrid_repository import HybridRepository
 from database.database_manager import DatabaseManager
 from ui_styles import FONT_SMALL, PAD_LARGE, PAD_NORMAL, THEME_COLORS
 from utils.user_session import clear_user
-
+from pcm_module import PCMCalcScreen
+from pcm_module.sensor_pcm_screen import SensorPCMScreen
 
 class MainUI(ctk.CTk):
     def __init__(self, username: str = "Usuário"):
@@ -92,7 +93,7 @@ class MainUI(ctk.CTk):
         # Páginas do sistema
         self.pages = {
             "dashboard": DashboardTab,
-            "sensor": SensorPage,
+            "sensor": SensorPCMScreen,
             "materiais": MaterialsView,
             "experimentos": ExperimentsPage,
             "calculos": ThermalCalculationsPage,
