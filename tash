@@ -1,0 +1,12 @@
+* [33mfa3e0b0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Mais responsividade na interface
+* [33m0d2c2ca[m  executavel com erro do banco corrigido
+* [33m1e2247d[m executavel agora vai
+* [33m1edadf7[m Pequenas correções no dashboard sensor e erros de pylance
+* [33mee0d69f[m consertando dashboard
+*   [33m7165689[m Merge branches 'main' and 'main' of https://github.com/andreluis3/pcm_sistema
+[32m|[m[33m\[m  
+[32m|[m * [33m5cf9722[m executável criado
+* [33m|[m [33mb4b1605[m Melhoria do sensor page com gauge dinamico e scrollbar
+[33m|[m[33m/[m  
+* [33m107917b[m documentação da conexão sensor
+* [33m9f1a5c4[m  implemetando e arrumando painel config sensor
