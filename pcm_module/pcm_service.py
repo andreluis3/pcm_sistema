@@ -1,319 +1,291 @@
+"""
+pcm_service.py
+══════════════
+Processamento térmico do CSV de experimento PCM.
+
+REGRA CRÍTICA:
+    Toda coluna lida do pandas DataFrame deve ser convertida para list[float]
+    ANTES de ser passada para PCMResult. Nunca armazenar pandas.Series.
+
+Padrão obrigatório de conversão:
+    valores = pd.to_numeric(df["coluna"], errors="coerce").fillna(0).tolist()
+"""
 from __future__ import annotations
 
-from datetime import datetime
+import math
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
 from .pcm_model import PCMResult
+from .pcm_metrics import (
+    CALOR_LATENTE_PCM,
+    TEMP_FUSAO_PCM,
+    TEMP_SATURACAO_PCM,
+    calcular_tempo_na_faixa_pcm,
+)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Constantes do experimento
+# ─────────────────────────────────────────────────────────────────────────────
+
+CALOR_ESPECIFICO_PCM: float = 2000.0   # J/(kg·K)
+POTENCIA_NOTEBOOK_W: float = 50.0      # W — referência de potência do notebook
 
 
 class PCMService:
-    REQUIRED_COLUMNS = {"timestamp", "tempo_s", "potencia_w", "temperatura_c", "energia_j"}
-    CALOR_LATENTE = 180000.0
+    """
+    Serviço responsável por processar arquivos CSV de experimento PCM.
 
-    def process_csv(self, csv_path: str | Path) -> PCMResult:
+    Garante que nenhuma pandas.Series vaze para fora deste módulo.
+    Todos os dados são convertidos para tipos primitivos Python antes
+    de instanciar PCMResult.
+    """
 
-        df = pd.read_csv(csv_path)
+    # Colunas esperadas no CSV (flexível — usa o que estiver disponível)
+    _COLUNAS_REQUERIDAS: list[str] = ["tempo_s", "temperatura_c"]
+    _COLUNAS_OPCIONAIS: dict[str, float] = {
+        "potencia_w": 0.0,
+        "energia_j": 0.0,
+    }
 
-        print("COLUNAS ORIGINAIS:")
-        print(df.columns.tolist())
+    def process_csv(self, file_path: str | Path) -> PCMResult:
+        """
+        Lê, valida e processa um arquivo CSV de experimento PCM.
 
-        # ── normaliza CSV do sensor ─────────────────────
+        Retorna PCMResult com todos os campos como tipos primitivos Python.
+        Levanta ValueError com mensagem clara em caso de falha.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise ValueError(f"Arquivo não encontrado: {path}")
 
-        rename_map = {
-            "time_ms": "timestamp",
-            "minutes": "tempo_s",
-            "temp_simulada_10pct": "temperatura_c",
-        }
+        # ── Leitura do CSV ────────────────────────────────────────────────────
+        try:
+            df = pd.read_csv(path, sep=None, engine="python")
+        except Exception as exc:
+            raise ValueError(f"Falha ao ler CSV: {exc}") from exc
 
-        df = df.rename(columns=rename_map)
+        # Normaliza nomes de colunas
+        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
 
-        # minutos -> segundos
-        if "tempo_s" in df.columns:
-            df["tempo_s"] = pd.to_numeric(df["tempo_s"]) * 60.0
-
-        # cria potência fake
-        if "potencia_w" not in df.columns:
-            df["potencia_w"] = 0.0
-
-        # cria energia fake
-        if "energia_j" not in df.columns:
-            df["energia_j"] = 0.0
-
-        # timestamp fallback
-        if "timestamp" not in df.columns:
-            df["timestamp"] = range(len(df))
-
-        print("COLUNAS NORMALIZADAS:")
-        print(df.columns.tolist())
-
-        # valida DEPOIS da normalização
-        self._validate_dataframe(df)
-
-        normalized_df = self._normalize_dataframe(df)
-
-        # resto do código continua daqui pra baixo...
-
-        energia_final = float(normalized_df["energia_j"].iloc[-1])
-        tempo_inicial = float(normalized_df["tempo_s"].iloc[0])
-        tempo_final = float(normalized_df["tempo_s"].iloc[-1])
-
-        energia_total = energia_final
-        tempo_total = tempo_final - tempo_inicial
-
-        if tempo_total <= 0:
-            raise ValueError("O tempo total calculado deve ser maior que zero.")
-        if energia_total < 0:
-            raise ValueError("A energia total calculada nao pode ser negativa.")
-
-        energia_incremental = normalized_df["energia_j"].diff().fillna(normalized_df["energia_j"]).round(4)
-        pico_potencia_idx = int(normalized_df["potencia_w"].idxmax())
-        pico_temperatura_idx = int(normalized_df["temperatura_c"].idxmax())
-        soma_potencia = float(normalized_df["potencia_w"].sum())
-        quantidade_amostras = int(len(normalized_df))
-        potencia_media = soma_potencia / quantidade_amostras
-        pico_potencia = float(normalized_df["potencia_w"].iloc[pico_potencia_idx])
-        pico_temperatura = float(normalized_df["temperatura_c"].iloc[pico_temperatura_idx])
-        tempo_pico_potencia = float(normalized_df["tempo_s"].iloc[pico_potencia_idx] - tempo_inicial)
-        tempo_pico_temperatura = float(normalized_df["tempo_s"].iloc[pico_temperatura_idx] - tempo_inicial)
-        temperatura_media = float(normalized_df["temperatura_c"].mean())
-        temperatura_inicial = float(normalized_df["temperatura_c"].iloc[0])
-        delta_t = pico_temperatura - temperatura_inicial
-
-        c = 2000  # J/kg°C
-        m = 1
-        delta_T = pico_temperatura - temperatura_inicial
-
-        Q_sensivel = m * c * delta_T
-        Q_total_pcm = Q_sensivel + self.CALOR_LATENTE
-
-        massa_pcm_kg = energia_total / Q_total_pcm
-        massa_pcm_g = massa_pcm_kg * 1000.0
-
-        Q_teorico = 234000.0
-        erro_percentual = ((energia_total - Q_teorico) / Q_teorico) * 100
-
-        energia_array = normalized_df["energia_j"].tolist()
-        Q_latente = self.CALOR_LATENTE
-        Q_sensivel_fase = Q_teorico - Q_latente
-
-        fase_pcm = []
-        for energia in energia_array:
-            if energia < Q_sensivel_fase:
-                fase_pcm.append("sensivel")
-            else:
-                fase_pcm.append("latente")
-
-        preview_df = normalized_df.tail(8).copy()
-        preview_df["tempo_s"] = preview_df["tempo_s"].map(lambda value: f"{value:.2f}")
-        preview_df["potencia_w"] = preview_df["potencia_w"].map(lambda value: f"{value:.2f}")
-        preview_df["temperatura_c"] = preview_df["temperatura_c"].map(lambda value: f"{value:.2f}")
-        preview_df["energia_j"] = preview_df["energia_j"].map(lambda value: f"{value:.2f}")
-
-        temperatura_media_movel = self._moving_average(normalized_df["temperatura_c"])
-        potencia_media_movel = self._moving_average(normalized_df["potencia_w"])
-        energia_media_movel = self._moving_average(normalized_df["energia_j"])
-
-        status_termico = self._classify_thermal_behavior(
-            pico_temperatura=pico_temperatura,
-            temperatura_media=temperatura_media,
-            potencia_pico=pico_potencia,
-            potencia_media=potencia_media,
-        )
-
-        calculo_detalhado = self._build_calculation_audit_trail(
-            df=normalized_df,
-            energia_total=energia_total,
-            energia_incremental=energia_incremental.tolist(),
-            soma_potencia=soma_potencia,
-            quantidade_amostras=quantidade_amostras,
-            potencia_media=potencia_media,
-            pico_temperatura=pico_temperatura,
-            temperatura_media=temperatura_media,
-            delta_t=delta_t,
-            massa_pcm_kg=massa_pcm_kg,
-            massa_pcm_g=massa_pcm_g,
-        )
-
-        analise_tecnica = [
-            f"O sistema atingiu pico termico de {pico_temperatura:.2f} C em {tempo_pico_temperatura:.2f} s.",
-            f"Potencia maxima registrada: {pico_potencia:.2f} W em {tempo_pico_potencia:.2f} s.",
-            f"Energia acumulada no ensaio: {energia_total:.2f} J ao longo de {tempo_total:.2f} s.",
-            f"PCM necessario estimado: {massa_pcm_g:.2f} g usando m = E_total / (Q_sensivel + L).",
-            f"Referencia teorica: {Q_teorico:.0f} J com erro de {erro_percentual:.2f}%.",
-            f"Comportamento termico classificado como {status_termico}.",
-        ]
-
-        return PCMResult(
-            energia_total=energia_total,
-            tempo_total=tempo_total,
-            potencia_media=potencia_media,
-            massa_pcm=massa_pcm_g,
-            pico_potencia=pico_potencia,
-            pico_temperatura=pico_temperatura,
-            data_execucao=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            delta_tempo=tempo_total,
-            tempo_pico_potencia=tempo_pico_potencia,
-            tempo_pico_temperatura=tempo_pico_temperatura,
-            temperatura_media=temperatura_media,
-            status_termico=status_termico,
-            analise_tecnica=analise_tecnica,
-            timestamps=normalized_df["timestamp"].astype(str).tolist(),
-            tempo_s=(normalized_df["tempo_s"] - tempo_inicial).round(4).tolist(),
-            potencia_w=normalized_df["potencia_w"].round(4).tolist(),
-            temperatura_c=normalized_df["temperatura_c"].round(4).tolist(),
-            energia_j=normalized_df["energia_j"].round(4).tolist(),
-            potencia_media_movel=potencia_media_movel,
-            temperatura_media_movel=temperatura_media_movel,
-            energia_media_movel=energia_media_movel,
-            fase_pcm=fase_pcm,
-            csv_preview=preview_df.to_dict(orient="records"),
-            calculo_detalhado=calculo_detalhado,
-            erro_percentual=erro_percentual,
-            energia_teorica=Q_teorico,
-        )
-
-    def _moving_average(self, series) -> list[float]:
-
-        # se vier DataFrame pega primeira coluna
-        if isinstance(series, pd.DataFrame):
-            series = series.iloc[:, 0]
-
-        # garante Series
-        series = pd.Series(series)
-
-        window = max(
-            3,
-            min(
-                25,
-                len(series) // 10 if len(series) >= 10 else len(series)
+        # Verifica colunas obrigatórias
+        faltando = [c for c in self._COLUNAS_REQUERIDAS if c not in df.columns]
+        if faltando:
+            raise ValueError(
+                f"Colunas obrigatórias ausentes no CSV: {faltando}\n"
+                f"Colunas encontradas: {list(df.columns)}"
             )
-        )
 
-        return (
-            series
-            .rolling(window=window, min_periods=1)
-            .mean()
-            .round(4)
+        # ── Conversão SEGURA para list[float] ────────────────────────────────
+        # pd.to_numeric(..., errors="coerce") converte erros para NaN
+        # .fillna(0) elimina NaN
+        # .tolist() converte para list[float] nativa do Python
+
+        tempo_s: list[float] = (
+            pd.to_numeric(df["tempo_s"], errors="coerce")
+            .fillna(0)
+            .tolist()
+        )
+        temperatura_c: list[float] = (
+            pd.to_numeric(df["temperatura_c"], errors="coerce")
+            .fillna(0)
             .tolist()
         )
 
-    def _build_calculation_audit_trail(
-        self,
-        *,
-        df: pd.DataFrame,
+        potencia_w: list[float] = (
+            pd.to_numeric(df.get("potencia_w", pd.Series([0.0] * len(df))), errors="coerce")
+            .fillna(0)
+            .tolist()
+            if "potencia_w" in df.columns
+            else [0.0] * len(tempo_s)
+        )
+
+        energia_j: list[float] = (
+            pd.to_numeric(df.get("energia_j", pd.Series([0.0] * len(df))), errors="coerce")
+            .fillna(0)
+            .tolist()
+            if "energia_j" in df.columns
+            else [0.0] * len(tempo_s)
+        )
+
+        # ── Preview para UI (strings — sem pandas.Series) ─────────────────────
+        colunas_preview = ["timestamp", "tempo_s", "potencia_w", "temperatura_c", "energia_j"]
+        preview_rows: list[dict[str, str]] = []
+        for _, row in df.head(20).iterrows():
+            preview_rows.append(
+                {col: str(row[col]) if col in df.columns else "" for col in colunas_preview}
+            )
+
+        # ── Cálculos escalares ────────────────────────────────────────────────
+        n = min(len(tempo_s), len(temperatura_c))
+
+        energia_total: float = self._calcular_energia_total(tempo_s, potencia_w, energia_j)
+        potencia_media: float = self._calcular_potencia_media(potencia_w)
+        pico_temperatura: float = float(max(temperatura_c)) if temperatura_c else 0.0
+        temperatura_media: float = (
+            sum(temperatura_c) / len(temperatura_c) if temperatura_c else 0.0
+        )
+        delta_tempo: float = float(tempo_s[-1] - tempo_s[0]) if len(tempo_s) >= 2 else 0.0
+
+        # Tempo do pico
+        tempo_pico_temperatura: float = 0.0
+        if temperatura_c:
+            idx_pico = temperatura_c.index(pico_temperatura)
+            tempo_pico_temperatura = float(tempo_s[idx_pico]) if idx_pico < len(tempo_s) else 0.0
+
+        # Massa PCM: m = Q / (c * ΔT + L)  onde Q é energia total
+        massa_pcm: float = self._calcular_massa_pcm(
+            energia_total, temperatura_c
+        )
+
+        # Energia teórica = massa * calor latente
+        energia_teorica: float = float(massa_pcm) * CALOR_LATENTE_PCM
+
+        # ── Análise técnica ───────────────────────────────────────────────────
+        analise, calculo = self._gerar_analise(
+            tempo_s=tempo_s,
+            temperatura_c=temperatura_c,
+            energia_total=energia_total,
+            massa_pcm=massa_pcm,
+            potencia_media=potencia_media,
+            pico_temperatura=pico_temperatura,
+            energia_teorica=energia_teorica,
+        )
+
+        return PCMResult(
+            tempo_s=tempo_s,
+            temperatura_c=temperatura_c,
+            potencia_w=potencia_w,
+            energia_j=energia_j,
+            energia_total=energia_total,
+            energia_teorica=energia_teorica,
+            potencia_media=potencia_media,
+            massa_pcm=massa_pcm,
+            pico_temperatura=pico_temperatura,
+            tempo_pico_temperatura=tempo_pico_temperatura,
+            temperatura_media=temperatura_media,
+            delta_tempo=delta_tempo,
+            analise_tecnica=analise,
+            calculo_detalhado=calculo,
+            csv_preview=preview_rows,
+        )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Helpers de cálculo
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _calcular_energia_total(
+        tempo_s: list[float],
+        potencia_w: list[float],
+        energia_j: list[float],
+    ) -> float:
+        """
+        Energia total em Joules.
+
+        Prioridade:
+        1. Integração numérica de potência × tempo (trapezoidal)
+        2. Último valor da coluna energia_j
+        3. Zero
+        """
+        # Se há dados de potência não-nulos, integra
+        if potencia_w and any(p > 0.0 for p in potencia_w):
+            n = min(len(tempo_s), len(potencia_w))
+            total = 0.0
+            for i in range(1, n):
+                dt = float(tempo_s[i]) - float(tempo_s[i - 1])
+                if dt > 0.0:
+                    p_med = (float(potencia_w[i]) + float(potencia_w[i - 1])) / 2.0
+                    total += p_med * dt
+            if total > 0.0:
+                return total
+
+        # Fallback: último valor da coluna energia
+        if energia_j and energia_j[-1] > 0.0:
+            return float(energia_j[-1])
+
+        return 0.0
+
+    @staticmethod
+    def _calcular_potencia_media(potencia_w: list[float]) -> float:
+        """Potência média em Watts. Retorna POTENCIA_NOTEBOOK_W como fallback."""
+        validos = [p for p in potencia_w if p > 0.0]
+        if validos:
+            return sum(validos) / len(validos)
+        return POTENCIA_NOTEBOOK_W
+
+    @staticmethod
+    def _calcular_massa_pcm(
         energia_total: float,
-        energia_incremental: list[float],
-        soma_potencia: float,
-        quantidade_amostras: int,
+        temperatura_c: list[float],
+    ) -> float:
+        """
+        Estima a massa de PCM necessária (g).
+
+        Fórmula: m = Q / (c·ΔT + L)
+        onde:
+            Q = energia total (J)
+            c = calor específico (J/(kg·K)) → convertido para J/(g·K) ÷ 1000
+            ΔT = variação de temperatura dentro da faixa PCM (°C)
+            L = calor latente (J/g)
+        """
+        if energia_total <= 0.0 or not temperatura_c:
+            return 0.0
+
+        temp_faixa = [
+            t for t in temperatura_c
+            if TEMP_FUSAO_PCM <= t <= TEMP_SATURACAO_PCM
+        ]
+        delta_t = (max(temp_faixa) - min(temp_faixa)) if len(temp_faixa) >= 2 else 7.0
+        c_j_por_g = CALOR_ESPECIFICO_PCM / 1000.0  # J/(g·K)
+
+        denominador = c_j_por_g * delta_t + CALOR_LATENTE_PCM
+        if denominador <= 0.0:
+            return 0.0
+
+        return energia_total / denominador
+
+    @staticmethod
+    def _gerar_analise(
+        *,
+        tempo_s: list[float],
+        temperatura_c: list[float],
+        energia_total: float,
+        massa_pcm: float,
         potencia_media: float,
         pico_temperatura: float,
-        temperatura_media: float,
-        delta_t: float,
-        massa_pcm_kg: float,
-        massa_pcm_g: float,
-    ) -> list[str]:
-        calculo_detalhado = [
-            "Energia total: E_total = ultimo valor da coluna energia_j.",
-            f"E_total = {energia_total:.2f} J.",
-            "Energia incremental: DeltaE[i] = energia_j[i] - energia_j[i-1].",
+        energia_teorica: float,
+    ) -> tuple[list[str], list[str]]:
+        """Gera linhas de análise técnica e cálculo detalhado."""
+        duracao_s = float(tempo_s[-1]) if tempo_s else 0.0
+        duracao_min = duracao_s / 60.0
+
+        tempo_atuacao = calcular_tempo_na_faixa_pcm(tempo_s, temperatura_c)
+        eficiencia = (
+            min((massa_pcm * CALOR_LATENTE_PCM / energia_total) * 100.0, 100.0)
+            if energia_total > 0.0
+            else 0.0
+        )
+
+        analise = [
+            f"Duração total do ensaio: {duracao_min:.1f} min ({duracao_s:.0f} s).",
+            f"Temperatura de pico registrada: {pico_temperatura:.2f} °C.",
+            f"Energia total absorvida: {energia_total:.0f} J.",
+            f"Massa de PCM estimada: {massa_pcm:.2f} g.",
+            f"Eficiência térmica estimada: {eficiencia:.1f} %.",
+            f"Tempo de atuação do PCM (50–60 °C): {tempo_atuacao / 60.0:.1f} min.",
         ]
 
-        if energia_incremental:
-            preview_count = min(5, len(energia_incremental))
-            for index in range(preview_count):
-                if index == 0:
-                    calculo_detalhado.append(
-                        f"DeltaE[0] = energia_j[0] = {energia_incremental[index]:.2f} J."
-                    )
-                else:
-                    energia_atual = float(df['energia_j'].iloc[index])
-                    energia_anterior = float(df['energia_j'].iloc[index - 1])
-                    calculo_detalhado.append(
-                        f"DeltaE[{index}] = {energia_atual:.2f} - {energia_anterior:.2f} = {energia_incremental[index]:.2f} J."
-                    )
-            if len(energia_incremental) > preview_count:
-                calculo_detalhado.append(
-                    f"... {len(energia_incremental) - preview_count} incrementos adicionais permanecem rastreaveis na serie importada."
-                )
+        calculo = [
+            f"Q_total = {energia_total:.2f} J  (integral P×dt)",
+            f"m_PCM   = Q / (c·ΔT + L) = {massa_pcm:.4f} g",
+            f"L_PCM   = {CALOR_LATENTE_PCM} J/g  (calor latente de fusão)",
+            f"P_média = {potencia_media:.2f} W",
+            f"Q_ideal = m·L = {energia_teorica:.2f} J",
+            f"η       = Q_real / Q_ideal × 100 = {eficiencia:.2f} %",
+        ]
 
-        calculo_detalhado.extend(
-            [
-                "Potencia media: P_media = soma(potencia_w) / N.",
-                f"soma(potencia_w) = {soma_potencia:.2f} W.",
-                f"N = {quantidade_amostras} amostras.",
-                f"P_media = {soma_potencia:.2f} / {quantidade_amostras} = {potencia_media:.2f} W.",
-                "Temperatura: analisar pico, media e variacao no periodo.",
-                f"T_inicial = {float(df['temperatura_c'].iloc[0]):.2f} C.",
-                f"T_pico = {pico_temperatura:.2f} C.",
-                f"T_media = {temperatura_media:.2f} C.",
-                f"DeltaT = T_pico - T_inicial = {pico_temperatura:.2f} - {float(df['temperatura_c'].iloc[0]):.2f} = {delta_t:.2f} C.",
-                "Massa de PCM: m_PCM = E_total / L.",
-                f"L = {self.CALOR_LATENTE:.0f} J/kg.",
-                f"m_PCM = {energia_total:.2f} / {self.CALOR_LATENTE:.0f} = {massa_pcm_kg:.6f} kg.",
-                f"PCM final = {massa_pcm_kg:.6f} x 1000 = {massa_pcm_g:.2f} g.",
-            ]
-        )
-        return calculo_detalhado
-
-
-    def _classify_thermal_behavior(
-        self,
-        *,
-        pico_temperatura: float,
-        temperatura_media: float,
-        potencia_pico: float,
-        potencia_media: float,
-    ) -> str:
-        if pico_temperatura >= 85.0 or (potencia_media > 0 and potencia_pico / potencia_media >= 2.2):
-            return "critico"
-        if pico_temperatura >= 70.0 or temperatura_media >= 60.0:
-            return "em observacao"
-        return "estavel"
-
-    def _normalize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        normalized_df = df.copy()
-        normalized_df.columns = [str(column).strip().lower() for column in normalized_df.columns]
-        normalized_df["timestamp"] = normalized_df["timestamp"].astype(str).str.strip()
-
-        for column in self.REQUIRED_COLUMNS.difference({"timestamp"}):
-            normalized_df[column] = pd.to_numeric(normalized_df[column], errors="raise")
-
-        normalized_df = normalized_df.sort_values(by="tempo_s", kind="stable").reset_index(drop=True)
-        return normalized_df
-
-    def _validate_dataframe(self, df: pd.DataFrame) -> None:
-        print("VALIDANDO COLUNAS:")
-        print(df.columns.tolist())
-
-        normalized_columns = {
-            str(column).strip().lower()
-            for column in df.columns
-        }
-
-        print("COLUNAS NORMALIZADAS:")
-        print(normalized_columns)
-
-        missing_columns = self.REQUIRED_COLUMNS.difference(normalized_columns)
-
-        print("FALTANDO:")
-        print(missing_columns)
-        normalized_columns = {str(column).strip().lower() for column in df.columns}
-        missing_columns = self.REQUIRED_COLUMNS.difference(normalized_columns)
-        if missing_columns:
-            missing = ", ".join(sorted(missing_columns))
-            raise ValueError(f"CSV invalido. Colunas ausentes: {missing}.")
-
-        if df.empty:
-            raise ValueError("O CSV informado esta vazio.")
-
-        if len(df.index) < 2:
-            raise ValueError("O CSV deve conter pelo menos duas linhas para calcular os intervalos.")
-
-        normalized_df = df.copy()
-        normalized_df.columns = [str(column).strip().lower() for column in normalized_df.columns]
-
-        for column in self.REQUIRED_COLUMNS:
-            if normalized_df[column].isnull().any():
-                raise ValueError(f"A coluna '{column}' possui valores nulos.")
+        return analise, calculo

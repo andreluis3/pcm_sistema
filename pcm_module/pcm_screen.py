@@ -22,6 +22,13 @@ from .pcm_repository import PCMRepository
 from .pcm_service import PCMService
 from ui_styles import *
 
+TEMP_FUSAO_PCM = 53.0
+TEMP_SATURACAO_PCM = 60.0
+
+CALOR_ESPECIFICO_PCM = 2000.0
+CALOR_LATENTE_PCM = 110000.0
+
+POTENCIA_NOTEBOOK_W = 50.0
 
 def calcular_dT_dt(tempo_s: list[float], temperatura_c: list[float]) -> list[float]:
     """Derivada discreta dT/dt usando diferença entre pontos consecutivos (°C/s).
@@ -914,7 +921,7 @@ class PCMCalcScreen(ctk.CTkFrame):
     
         ctk.CTkLabel(
             sensor_header,
-            text="Sensor Infravermelho — Absorção de Calor do PCM",
+            text="Sensor Infravermelho — Análise Energética do PCM",
             font=("Arial", 26, "bold"),
             text_color=self.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w", padx=24, pady=(20, 6))
@@ -922,8 +929,9 @@ class PCMCalcScreen(ctk.CTkFrame):
         ctk.CTkLabel(
             sensor_header,
             text=(
-                "Importa o log do sensor infravermelho e plota o gráfico de absorção de calor "
-                "(Joules × Tempo). Usa temperatura simulada (+10%) para cálculo energético via Q = m·c·ΔT."
+                "Importa o log do sensor infravermelho e calcula absorção energética real do PCM. "
+                "Métricas físicas: calor sensível (Q=m·c·ΔT), calor latente (Q=m·L·f), "
+                "energia total absorvida e eficiência relativa ao calor emitido pelo notebook."
             ),
             font=("Arial", 13),
             text_color=self.TEXT_SECONDARY,
@@ -954,22 +962,76 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
         self.sensor_status_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=24, pady=(0, 18))
     
-        # ── KPI cards do sensor ───────────────────────────────────────────────
+        # ── KPI cards do sensor — 8 cards em 2 linhas de 4 ───────────────────
         self.sensor_kpi_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.sensor_kpi_frame.grid(row=7, column=0, sticky="ew", padx=12, pady=(0, 16))
         for col in range(4):
             self.sensor_kpi_frame.grid_columnconfigure(col, weight=1, uniform="skpi")
     
+        # ─────────────────────────────────────────────────────────────────────
+        # Definição dos 8 cards científicos
+        #
+        # Chaves DEVEM ser idênticas às usadas em _update_sensor_dashboard()
+        # ─────────────────────────────────────────────────────────────────────
         sensor_kpi_defs = [
-            ("Pico de Temperatura",   "--",  "Pico de temperatura simulada registrado pelo sensor (°C)."),
-            ("Tempo de Absorção",     "--",  "Tempo total de experimento com absorção de calor (min)."),
-            ("Energia Total Absorvida", "--", "Q = m·c·ΔT  (m=1 kg, c=2000 J/kg·°C)."),
-            ("Tempo Atuação PCM",     "--",  "Tempo em que a temperatura simulada ficou entre 50–60 °C (min)."),
-            ("Temperatura Média",     "--",  "Temperatura simulada média ao longo do ensaio (°C)."),
-            ("Temperatura Inicial",   "--",  "Temperatura simulada no início do ensaio (°C)."),
-            ("ΔT Total",              "--",  "Variação total: T_pico − T_inicial (°C)."),
-            ("Taxa de Aquecimento",   "--",  "ΔT / duração  (°C/min)."),
+            # Linha 0
+            (
+                "Temperatura Atual PCM",
+                "--",
+                "Temperatura mais recente registrada pelo sensor (°C). "
+                "Reflete o estado térmico instantâneo do PCM.",
+            ),
+            (
+                "Energia Total Absorvida",
+                "--",
+                "Q_total = Q_sensível + Q_latente (J). "
+                "Energia térmica total capturada pelo PCM durante o ensaio.",
+            ),
+            (
+                "Energia Sensível",
+                "--",
+                "Q_s = m · c · ΔT  (J). "
+                "Calor absorvido pelo PCM antes e após a mudança de fase — "
+                "eleva a temperatura sem fusão.",
+            ),
+            (
+                "Energia Latente",
+                "--",
+                "Q_l = m · L · f  (J). "
+                "Calor absorvido DURANTE a mudança de fase, onde f = fração de atuação. "
+                "Mantém temperatura estável enquanto o PCM funde.",
+            ),
+            # Linha 1
+            (
+                "Estado do PCM",
+                "--",
+                "Estado físico instantâneo com base na temperatura atual:\n"
+                "• PCM Sólido  →  T < 53 °C\n"
+                "• PCM em Fusão  →  53–60 °C\n"
+                "• PCM Saturado  →  T > 60 °C",
+            ),
+            (
+                "Eficiência Térmica PCM",
+                "--",
+                "η = (Q_total / Q_notebook_ref) × 100 (%).\n"
+                "Fração do calor emitido pelo notebook (234 kJ) "
+                "que foi desviada para o PCM por condução térmica passiva.",
+            ),
+            (
+                "Tempo de Estabilização",
+                "--",
+                "Instante (min) em que a taxa de variação de temperatura caiu abaixo de "
+                "0,01 °C/s por pelo menos 30 s contínuos — indica estabilização térmica do sistema.",
+            ),
+            (
+                "Calor Desviado do Notebook",
+                "--",
+                "Energia térmica removida passivamente do notebook via condução térmica. "
+                "Equivale à energia total absorvida pelo PCM (Q_total). "
+                "Quanto maior, mais efetiva a dissipação passiva.",
+            ),
         ]
+    
         for idx, (key, default, tip) in enumerate(sensor_kpi_defs):
             self._create_sensor_kpi_card(idx, key, default, tooltip=tip)
     
@@ -979,10 +1041,9 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.sensor_chart_section.grid_columnconfigure(0, weight=1)
     
         self._render_sensor_placeholder()
-
+    
         # ── Seção de comparação COM vs SEM PCM ───────────────────────────────
         self._build_comparison_section()
-
 
     def _create_sensor_kpi_card(self, index: int, title: str, default: str, *, tooltip: str) -> None:
         card = ctk.CTkFrame(
@@ -1007,7 +1068,6 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
         title_lbl.pack(anchor="w", padx=14, pady=(10, 4))
     
-        # Tooltip inline simples — _Tooltip está no mesmo módulo, sem import circular
         try:
             _Tooltip(title_lbl, tooltip)
         except Exception:
@@ -1023,7 +1083,7 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
         value_lbl.pack(anchor="w", padx=14, pady=(0, 12))
         self.sensor_kpi_values[title] = value_lbl
-    
+        
     
     def _render_sensor_placeholder(self) -> None:
         self._clear_sensor_charts()
@@ -1074,52 +1134,102 @@ class PCMCalcScreen(ctk.CTkFrame):
  
     
     def _update_sensor_dashboard(self, r: "SensorPCMResult") -> None:
-        """Atualiza os KPI cards do sensor IR."""
-
-        dur_min = r.tempo_total / 60.0 if r.tempo_total > 0 else 0.0
-        delta_t = r.pico_temperatura - r.temperatura_inicial
-        taxa = delta_t / dur_min if dur_min > 0 else 0.0
-        atuacao_min = r.tempo_atuacao_pcm_s / 60.0
-
-        # ── Métricas principais ─────────────────────────────────────
-        # Chaves devem corresponder exatamente às definidas em sensor_kpi_defs
-        self.sensor_kpi_values["Pico de Temperatura"].configure(
-            text=f"{r.pico_temperatura:.2f} °C"
+        """
+        Atualiza todos os KPI cards científicos do sensor IR.
+    
+        Física aplicada
+        ───────────────
+        Q_s  = m · c · ΔT          Calor sensível  (J)
+        Q_l  = m · L · f           Calor latente   (J)  onde f = fração de atuação PCM
+        Q    = Q_s + Q_l            Energia total   (J)
+        η    = Q / Q_ref × 100      Eficiência térmica  (%)
+    
+        Constantes (definidas em pcm_temperature_sensor.py):
+        m = MASSA_PCM_KG          (1,182 kg  — cera de coco)
+        c = CALOR_ESPECIFICO_PCM  (3050 J/kg·K)
+        L = CALOR_LATENTE_PCM     (152 000 J/kg)
+        Q_ref = NOTEBOOK_REFERENCIA_J (234 000 J)
+        """
+    
+        # ── 1. Temperatura atual ───────────────────────────────────────────────────
+        # Usa campo explícito; fallback para último elemento da série
+        T_atual = getattr(r, "temperatura_atual_c", None)
+        if T_atual is None or T_atual == 0.0:
+            T_atual = float(r.temperatura_c[-1]) if r.temperatura_c else r.temperatura_inicial
+    
+        self.sensor_kpi_values["Temperatura Atual PCM"].configure(
+            text=f"{T_atual:.1f} °C"
         )
-
-        self.sensor_kpi_values["Tempo de Absorção"].configure(
-            text=f"{dur_min:.1f} min"
-        )
-
+    
+        # ── 2. Energia total ───────────────────────────────────────────────────────
         self.sensor_kpi_values["Energia Total Absorvida"].configure(
             text=f"{r.energia_total_j:,.0f} J"
         )
-
-        self.sensor_kpi_values["Tempo Atuação PCM"].configure(
-            text=f"{atuacao_min:.1f} min"
+    
+        # ── 3. Energia sensível: Q_s = m·c·ΔT ────────────────────────────────────
+        self.sensor_kpi_values["Energia Sensível"].configure(
+            text=f"{r.energia_sensivel_j:,.0f} J"
         )
-
-        self.sensor_kpi_values["Temperatura Média"].configure(
-            text=f"{r.temperatura_media:.2f} °C"
+    
+        # ── 4. Energia latente: Q_l = m·L·f ──────────────────────────────────────
+        self.sensor_kpi_values["Energia Latente"].configure(
+            text=f"{r.energia_latente_j:,.0f} J"
         )
-
-        self.sensor_kpi_values["Temperatura Inicial"].configure(
-            text=f"{r.temperatura_inicial:.2f} °C"
+    
+        # ── 5. Estado físico do PCM (baseado em temperatura atual) ────────────────
+        #
+        # Classifica de acordo com as faixas térmicas do experimento.
+        # Usa temperatura ATUAL — não o pico — para refletir estado instantâneo.
+        #
+      
+    
+        if T_atual < TEMP_FUSAO_PCM:
+            estado_txt   = "PCM Sólido"
+            estado_color = "#93C5FD"     # azul claro — fase sólida
+        elif T_atual <= TEMP_SATURACAO_PCM:
+            estado_txt   = "PCM em Fusão"
+            estado_color = "#FCD34D"     # amarelo — mudança de fase
+        else:
+            estado_txt   = "PCM Saturado"
+            estado_color = "#F87171"     # vermelho — saturação
+    
+        self.sensor_kpi_values["Estado do PCM"].configure(
+            text=estado_txt,
+            text_color=estado_color,
         )
-
-        self.sensor_kpi_values["ΔT Total"].configure(
-            text=f"{delta_t:.2f} °C"
+    
+        # ── 6. Eficiência térmica: η = Q_total / Q_ref × 100 ─────────────────────
+        eficiencia = r.eficiencia_termica  # já calculada em _calcular()
+        self.sensor_kpi_values["Eficiência Térmica PCM"].configure(
+            text=f"{eficiencia:.2f} %"
         )
-
-        self.sensor_kpi_values["Taxa de Aquecimento"].configure(
-            text=f"{taxa:.3f} °C/min"
+    
+        # ── 7. Tempo de estabilização ─────────────────────────────────────────────
+        t_estab_s = r.tempo_estabilizacao_s
+        if t_estab_s > 0.0:
+            t_estab_min = t_estab_s / 60.0
+            estab_txt = f"{t_estab_min:.1f} min"
+        else:
+            estab_txt = "Não estabilizou"
+    
+        self.sensor_kpi_values["Tempo de Estabilização"].configure(
+            text=estab_txt
         )
-
-        # ── Renderizações ──────────────────────────────────────────
-
+    
+        # ── 8. Calor desviado do notebook (= Q_total absorvido pelo PCM) ──────────
+        #
+        # Representa a energia térmica removida passivamente do notebook
+        # via condução térmica direta para o PCM.
+        # É numericamente igual a Q_total, mas apresentado com contexto diferente.
+        #
+        self.sensor_kpi_values["Calor Desviado do Notebook"].configure(
+            text=f"{r.energia_total_j:,.0f} J"
+        )
+    
+        # ── Renderizações ──────────────────────────────────────────────────────────
         self._render_sensor_charts(r)
         self._update_comparison_section(r)
-   
+    
     @staticmethod
     def _smooth(values: list[float], window: int = 7) -> list[float]:
         """Média móvel centrada para suavizar curvas científicas."""

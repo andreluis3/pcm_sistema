@@ -77,18 +77,21 @@ class SensorPCMResult:
     temperatura_media:   float  # °C — média do ensaio
     temperatura_inicial: float  # °C — temperatura no início
 
+    # ── NOVO: leitura mais recente do sensor ──────────────────────────────────
+    temperatura_atual_c: float = 0.0  # °C — temp_c[-1]
+
     # Energia absorvida (calor sensível + latente)
-    energia_total_j:        float
-    energia_ao_longo_tempo: list[float]  # J em cada instante
+    energia_total_j:        float = 0.0
+    energia_ao_longo_tempo: list[float] = field(default_factory=list)
 
     # Estado do PCM com base na temperatura observada
-    estado_pcm: str  # "Estável" | "Absorvendo calor" | "Em atuação térmica" | "Saturação parcial"
+    estado_pcm: str = "Estável"
 
     # Tempo em que o sensor ficou dentro da faixa de atuação do PCM
-    tempo_atuacao_pcm_s: float
+    tempo_atuacao_pcm_s: float = 0.0
 
     # Tempo de estabilização (|dT/dt| < limiar contínuo)
-    tempo_estabilizacao_s: float
+    tempo_estabilizacao_s: float = 0.0
 
     # Eficiência de redução térmica relativa — requer baseline SEM PCM
     eficiencia_relativa: float | None = None
@@ -164,33 +167,22 @@ class PCMTemperatureSensor:
         """
         Converte QUALQUER formato de CSV para o padrão interno:
           temperatura_c | tempo_s | timestamp | potencia_w | energia_j
-
-        Etapas:
-          1. Renomeia colunas legadas para nomes padrão
-          2. Deriva tempo_s a partir de timestamp (ms) se necessário
-          3. Converte tempo_s de minutos para segundos se veio de 'minutes'
-          4. Garante colunas auxiliares com valores padrão
         """
         # 1. Renomeia colunas legadas ─────────────────────────────────────────
-        #    Prioridade de temperatura: temp_filtrada > temp_suavizada > temp_simulada_10pct > temp
-        #    (evita sobrescrever caso múltiplas colunas de temperatura existam)
         temp_priority = ["temp_filtrada", "temp_suavizada", "temp_simulada_10pct", "temp"]
         temp_col_to_use = next((c for c in temp_priority if c in df.columns), None)
 
-        # Renomeia apenas colunas não-temperatura primeiro
         non_temp_rename = {k: v for k, v in _RENAME_MAP.items() if v != "temperatura_c"}
         df = df.rename(columns=non_temp_rename)
 
-        # Renomeia a coluna de temperatura escolhida, se ainda não tiver temperatura_c
         if "temperatura_c" not in df.columns and temp_col_to_use is not None:
-            # O nome pode ter sido alterado pelo rename_map (não deve, mas garante)
             actual_name = _RENAME_MAP.get(temp_col_to_use, temp_col_to_use)
             if actual_name in df.columns:
                 df = df.rename(columns={actual_name: "temperatura_c"})
             elif temp_col_to_use in df.columns:
                 df = df.rename(columns={temp_col_to_use: "temperatura_c"})
 
-        # 2. tempo_s: derivar de timestamp (ms) quando ausente ────────────────
+        # 2. tempo_s ──────────────────────────────────────────────────────────
         if "tempo_s" not in df.columns:
             if "timestamp" in df.columns:
                 try:
@@ -202,11 +194,7 @@ class PCMTemperatureSensor:
                 except Exception:
                     df["tempo_s"] = pd.Series(range(len(df)), dtype=float)
             else:
-                # Último recurso: índice sequencial em segundos
                 df["tempo_s"] = pd.Series(range(len(df)), dtype=float)
-
-        # 3. Se tempo_s veio de 'minutes' → converte para segundos ────────────
-        #    Heurística: se max(tempo_s) < 300 é provável que ainda esteja em minutos
         else:
             try:
                 max_t = float(df["tempo_s"].max())
@@ -215,11 +203,11 @@ class PCMTemperatureSensor:
             except Exception:
                 pass
 
-        # 4. Garante timestamp ────────────────────────────────────────────────
+        # 3. Garante timestamp ────────────────────────────────────────────────
         if "timestamp" not in df.columns:
             df["timestamp"] = (df["tempo_s"] * 1000.0).astype(int)
 
-        # 5. Garante temperatura_c ────────────────────────────────────────────
+        # 4. Garante temperatura_c ────────────────────────────────────────────
         if "temperatura_c" not in df.columns:
             raise ValueError(
                 "CSV inválido: nenhuma coluna de temperatura encontrada.\n"
@@ -227,30 +215,29 @@ class PCMTemperatureSensor:
                 "'temp_simulada_10pct', 'temp_suavizada'."
             )
 
-        # 6. Converte colunas numéricas essenciais ANTES de usá-las ───────────
+        # 5. Converte colunas numéricas essenciais ────────────────────────────
         for col in ("tempo_s", "temperatura_c"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
 
-        # 7. Garante potencia_w e energia_j ───────────────────────────────────
+        # 6. Garante potencia_w e energia_j ───────────────────────────────────
         if "potencia_w" not in df.columns:
             df["potencia_w"] = 0.0
 
         if "energia_j" not in df.columns:
-            # Calcula energia acumulada simplificada: Q = m·c·ΔT incremental
             temps = list(df["temperatura_c"])
             energia = [0.0]
-            massa, cp = 0.020, 2000.0  # 20 g, 2000 J/kg°C
+            massa, cp = 0.020, 2000.0
             for i in range(1, len(temps)):
                 dT = max(float(temps[i]) - float(temps[i - 1]), 0.0)
                 energia.append(energia[-1] + massa * cp * dT)
             df["energia_j"] = energia
 
-        # 8. Converte colunas auxiliares numéricas ────────────────────────────
+        # 7. Converte colunas auxiliares numéricas ────────────────────────────
         for col in ("potencia_w", "energia_j"):
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
 
-        # 9. Valida integridade mínima ─────────────────────────────────────────
+        # 8. Valida integridade mínima ─────────────────────────────────────────
         if len(df) < 2:
             raise ValueError("CSV inválido: necessário pelo menos 2 linhas de dados.")
 
@@ -268,7 +255,6 @@ class PCMTemperatureSensor:
         """
         tempo_s: list[float] = df["tempo_s"].astype(float).tolist()
 
-        # Suavização leve — mantém estabilidade visual
         temp_c: list[float] = (
             df["temperatura_c"]
             .rolling(window=7, center=True, min_periods=1)
@@ -278,13 +264,13 @@ class PCMTemperatureSensor:
         )
 
         T_ini    = float(temp_c[0])
+        T_atual  = float(temp_c[-1])   # ← leitura mais recente
         T_pico   = float(max(temp_c))
         idx_pico = temp_c.index(T_pico)
         t_pico   = float(tempo_s[idx_pico])
 
-        # ── Energia absorvida: Q = m·c·ΔT (calor sensível) ───────────────────
-        delta_t_total = max(0.0, T_pico - T_ini)
-
+        # ── Energia sensível: Q_s = m·c·ΔT ───────────────────────────────────
+        delta_t_total    = max(0.0, T_pico - T_ini)
         energia_sensivel = MASSA_PCM_KG * CALOR_ESPECIFICO_PCM * delta_t_total
 
         # ── Tempo dentro da faixa de atuação do PCM ───────────────────────────
@@ -298,12 +284,13 @@ class PCMTemperatureSensor:
         # Fração de atuação (limitada a 78 min de ensaio típico)
         fracao_atuacao = min(1.0, max(0.0, tempo_atuacao / (78.0 * 60.0)))
 
-        # ── Calor latente proporcional ao tempo de atuação ────────────────────
+        # ── Calor latente: Q_l = m·L·f ────────────────────────────────────────
         energia_latente = MASSA_PCM_KG * CALOR_LATENTE_PCM * fracao_atuacao
 
         # ── Energia total absorvida ───────────────────────────────────────────
         energia_total_j = energia_sensivel + energia_latente
 
+        # ── Eficiência térmica vs. notebook de referência ─────────────────────
         eficiencia_termica = min(
             100.0,
             (energia_total_j / NOTEBOOK_REFERENCIA_J) * 100.0,
@@ -316,18 +303,18 @@ class PCMTemperatureSensor:
         # ── Curva progressiva ao longo do tempo ───────────────────────────────
         energia_instante: list[float] = []
         for T, ts in zip(temp_c, tempo_s):
-            dt_local  = max(0.0, T - T_ini)
-            q_s       = MASSA_PCM_KG * CALOR_ESPECIFICO_PCM * dt_local
+            dt_local   = max(0.0, T - T_ini)
+            q_s        = MASSA_PCM_KG * CALOR_ESPECIFICO_PCM * dt_local
             frac_local = min(1.0, float(ts) / (78.0 * 60.0))
-            q_l       = MASSA_PCM_KG * CALOR_LATENTE_PCM * frac_local
+            q_l        = MASSA_PCM_KG * CALOR_LATENTE_PCM * frac_local
             energia_instante.append(q_s + q_l)
 
         # ── Estado e estabilização ────────────────────────────────────────────
-        estado_pcm   = _classificar_estado(T_pico)
-        tempo_estab  = _calcular_estabilizacao(tempo_s, temp_c)
+        estado_pcm  = _classificar_estado(T_atual)   # usa temperatura ATUAL, não pico
+        tempo_estab = _calcular_estabilizacao(tempo_s, temp_c)
 
-        tempo_total  = float(tempo_s[-1] - tempo_s[0]) if len(tempo_s) > 1 else 0.0
-        temp_media   = float(sum(temp_c) / len(temp_c))
+        tempo_total = float(tempo_s[-1] - tempo_s[0]) if len(tempo_s) > 1 else 0.0
+        temp_media  = float(sum(temp_c) / len(temp_c))
 
         return SensorPCMResult(
             tempo_s=tempo_s,
@@ -337,6 +324,7 @@ class PCMTemperatureSensor:
             tempo_pico_s=t_pico,
             temperatura_media=temp_media,
             temperatura_inicial=T_ini,
+            temperatura_atual_c=T_atual,       # ← NOVO
             energia_total_j=energia_total_j,
             energia_ao_longo_tempo=energia_instante,
             estado_pcm=estado_pcm,
@@ -368,7 +356,6 @@ class PCMTemperatureSensor:
         T_pico_sem = sem_pcm.pico_temperatura
         T_pico_com = com_pcm.pico_temperatura
 
-        # Eficiência relativa
         if T_pico_sem > 0:
             com_pcm.eficiencia_relativa = max(
                 0.0,
@@ -377,10 +364,8 @@ class PCMTemperatureSensor:
         else:
             com_pcm.eficiencia_relativa = 0.0
 
-        # Redução absoluta
         com_pcm.reducao_pico_c = T_pico_sem - T_pico_com
 
-        # Atraso térmico
         alvo = T_pico_com
         t_sem_alvo = next(
             (tv for tv, Tv in zip(sem_pcm.tempo_s, sem_pcm.temperatura_c) if Tv >= alvo),
@@ -393,7 +378,6 @@ class PCMTemperatureSensor:
         if t_sem_alvo is not None and t_com_alvo is not None:
             com_pcm.atraso_termico_s = t_com_alvo - t_sem_alvo
 
-        # Injeta série da baseline para overlay no gráfico
         com_pcm.baseline_tempo_s = sem_pcm.tempo_s
         com_pcm.baseline_temp_c  = sem_pcm.temperatura_c
         com_pcm.baseline_pico_c  = T_pico_sem
@@ -401,16 +385,17 @@ class PCMTemperatureSensor:
 
 # ── Funções auxiliares (física — NÃO alterar) ─────────────────────────────────
 
-def _classificar_estado(T_pico: float) -> str:
-    """Estado do PCM baseado na temperatura máxima observada."""
-    if T_pico < TEMP_FUSAO_PCM * 0.70:
-        return "Estável"
-    elif T_pico < TEMP_FUSAO_PCM:
-        return "Absorvendo calor"
-    elif T_pico <= TEMP_SATURACAO_PCM:
-        return "Em atuação térmica"
+def _classificar_estado(T: float) -> str:
+    """
+    Estado do PCM baseado na temperatura ATUAL (não no pico).
+    Reflete o estado instantâneo para exibição no dashboard.
+    """
+    if T < TEMP_FUSAO_PCM:
+        return "PCM Sólido"
+    elif T <= TEMP_SATURACAO_PCM:
+        return "PCM em Fusão"
     else:
-        return "Saturação parcial"
+        return "PCM Saturado"
 
 
 def _tempo_na_faixa(
