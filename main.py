@@ -10,18 +10,8 @@ from utils.user_session import load_user
 from utils.paths import resource_path
 
 
-# =========================================================
-# CONFIGURAÇÕES GLOBAIS
-# =========================================================
+def _configure_hidpi_scaling():
 
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("dark-blue")
-
-
-def _configure_hidpi_scaling() -> None:
-    """
-    Ajusta escala automaticamente para monitores HiDPI.
-    """
     scaling = 1.1
 
     try:
@@ -41,123 +31,95 @@ def _configure_hidpi_scaling() -> None:
         elif tk_scaling >= 1.25:
             scaling = 1.15
 
-    except Exception as exc:
-        print(f"[WARN] Falha ao configurar HiDPI: {exc}")
+    except Exception:
+        pass
 
     ctk.set_widget_scaling(scaling)
     ctk.set_window_scaling(scaling)
 
 
-# =========================================================
-# HANDLER GLOBAL DE ERROS TKINTER
-# =========================================================
+def create_main_window(username: str):
 
-def handle_bgerror(exc, val, tb):
-    """
-    Evita crashes silenciosos do Tkinter.
-    """
-    import traceback
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
 
-    print("\n[TKINTER ERROR]")
-    traceback.print_exception(exc, val, tb)
+    root = ctk.CTk()
 
-
-# =========================================================
-# INICIALIZAÇÃO DA APP
-# =========================================================
-
-def create_main_app(username: str) -> MainUI:
-    """
-    Cria a interface principal já configurada.
-    """
-
-    app = MainUI(username=username)
+    root.title("Gerenciador Térmico de PCM")
 
     try:
-        app.iconbitmap(resource_path("assets/logo.ico"))
-    except Exception as exc:
-        print(f"[WARN] Não foi possível carregar ícone: {exc}")
+        root.iconbitmap(resource_path("assets/logo.ico"))
+    except Exception:
+        pass
 
-    app.report_callback_exception = handle_bgerror
+    screen_w = root.winfo_screenwidth()
+    screen_h = root.winfo_screenheight()
 
-    app.grid_columnconfigure(0, weight=1)
-    app.grid_rowconfigure(0, weight=1)
+    root.geometry(f"{int(screen_w * 0.92)}x{int(screen_h * 0.92)}")
 
-    return app
+    root.minsize(1200, 720)
+
+    # ROOT RESPONSIVO
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
+    app = MainUI(root, username=username)
+
+    app.grid(
+        row=0,
+        column=0,
+        sticky="nsew"
+    )
+
+    return root
 
 
-# =========================================================
-# MAIN
-# =========================================================
-
-def main() -> None:
-
-    # -----------------------------------------------------
-    # Configuração inicial
-    # -----------------------------------------------------
+def main():
 
     _configure_hidpi_scaling()
 
-    # -----------------------------------------------------
-    # Login automático por sessão salva
-    # -----------------------------------------------------
-
     saved_user = load_user()
 
+    # LOGIN AUTOMÁTICO
     if saved_user:
 
-        app = create_main_app(saved_user)
+        root = create_main_window(saved_user)
 
-        app.mainloop()
+        root.mainloop()
 
-        print("Aplicação encerrada.")
         return
 
-    # -----------------------------------------------------
-    # Login manual
-    # -----------------------------------------------------
-
+    # LOGIN
     login = LoginWindow()
     login.mainloop()
 
     if not login.logged_in:
-        print("Login cancelado.")
         return
 
-    username = login.username or "Usuário"
-
-    # -----------------------------------------------------
-    # Loading
-    # -----------------------------------------------------
-
+    # LOADING
     loading = LoadingScreen()
     loading.mainloop()
 
-    # -----------------------------------------------------
-    # Welcome screen
-    # -----------------------------------------------------
+    # WELCOME
+    welcome = WelcomeScreen(
+        username=login.username or "Usuário"
+    )
 
-    welcome = WelcomeScreen(username=username)
     welcome.mainloop()
 
     if not welcome.proceed:
-        print("Acesso cancelado na tela de boas-vindas.")
         return
 
-    # -----------------------------------------------------
-    # App principal
-    # -----------------------------------------------------
+    # APP PRINCIPAL
+    root = create_main_window(
+        login.username or "Usuário"
+    )
 
-    app = create_main_app(username)
+    root.mainloop()
 
-    app.mainloop()
-
-    print("Aplicação encerrada.")
-
-
-# =========================================================
-# ENTRYPOINT
-# =========================================================
 
 if __name__ == "__main__":
+
     main()
+
+    print("Aplicação encerrada.")

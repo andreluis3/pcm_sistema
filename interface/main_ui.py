@@ -16,55 +16,86 @@ from utils.user_session import clear_user
 from pcm_module import PCMCalcScreen
 from pcm_module.sensor_pcm_screen import SensorPCMScreen
 
-class MainUI(ctk.CTk):
-    def __init__(self, username: str = "Usuário"):
-        super().__init__()
+class MainUI(ctk.CTkFrame):
+    def __init__(self, parent, username: str = "Usuário"):
+            super().__init__(parent)
 
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
+            self.username = username
 
-        screen_w = self.winfo_screenwidth()
-        screen_h = self.winfo_screenheight()
+            self.current_screen = None
+            self._dashboard_ref = None
 
-        self.minsize(1100, 700)
-        self.geometry(f"{int(screen_w*0.90)}x{int(screen_h*0.90)}")
-        self.title("Gerenciador Térmico de PCM")
-        self.username = username
+            # Banco
+            self.db_manager = HybridRepository()
 
-        self.current_screen = None
-        self._dashboard_ref = None
+            # Layout
+            self._build_layout()
 
-        # === Layout principal ===
-        self._build_layout()
-
-        # === Banco de dados ===
-        self.db_manager = HybridRepository()
-
-        # === Carrega o dashboard após login ===
-        self.load_page("dashboard")
+            # Página inicial
+            self.load_page("dashboard")
 
     def _build_layout(self):
-        # UI REFATORADA: layout principal com padding e cores padronizadas
-        # Configurações de grid do MainUI
-        self.grid_columnconfigure(1, weight=1)
+
+        # =========================
+        # GRID PRINCIPAL
+        # =========================
         self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=0)  # sidebar fixa
+        self.grid_columnconfigure(1, weight=1)  # conteúdo expande
 
-        # Sidebar fixa
-        self.sidebar = Sidebar(self, self.load_page, user_name=self.username)
-        self.sidebar.grid(row=0, column=0, sticky="ns")
-        self.grid_columnconfigure(0, weight=0)  # 🔥 ESSENCIAL
+        # =========================
+        # SIDEBAR
+        # =========================
+        self.sidebar = Sidebar(
+            self,
+            self.load_page,
+            user_name=self.username
+        )
 
-        # Área de conteúdo
-        self.main_frame = ctk.CTkFrame(self, fg_color=THEME_COLORS["bg"])
-        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=PAD_LARGE, pady=PAD_LARGE)
-        self.main_frame.grid_columnconfigure(0, weight=1)
+        self.sidebar.grid(
+            row=0,
+            column=0,
+            sticky="ns"
+        )
+
+        # =========================
+        # CONTAINER PRINCIPAL
+        # =========================
+        self.main_frame = ctk.CTkFrame(
+            self,
+            fg_color=THEME_COLORS["bg"],
+            corner_radius=0
+        )
+
+        self.main_frame.grid(
+            row=0,
+            column=1,
+            sticky="nsew",
+            padx=(0, 10),
+            pady=(0, 0)
+        )
+
         self.main_frame.grid_rowconfigure(0, weight=1)
+        self.main_frame.grid_columnconfigure(0, weight=1)
 
-        # Barra de status
-        self.status_bar = ctk.CTkFrame(self, fg_color=THEME_COLORS["card"], corner_radius=0)
-        self.status_bar.grid(row=1, column=0, columnspan=2, sticky="ew")
+        # =========================
+        # STATUS BAR
+        # =========================
+        self.status_bar = ctk.CTkFrame(
+            self,
+            height=36,
+            fg_color=THEME_COLORS["card"],
+            corner_radius=0
+        )
+
+        self.status_bar.grid(
+            row=1,
+            column=0,
+            columnspan=2,
+            sticky="ew"
+        )
+
         self.status_bar.grid_columnconfigure(0, weight=1)
-        self.status_bar.grid_columnconfigure(1, weight=0)
 
         self.status_label = ctk.CTkLabel(
             self.status_bar,
@@ -72,25 +103,32 @@ class MainUI(ctk.CTk):
             text_color=THEME_COLORS["text_primary"],
             font=FONT_SMALL
         )
-        self.status_label.grid(row=0, column=0, sticky="w", padx=PAD_LARGE, pady=PAD_NORMAL)
 
-        self.user_label = ctk.CTkLabel(
-            self.status_bar,
-            text=f"Usuário: {self.username}",
-            text_color=THEME_COLORS["text_primary"],
-            font=FONT_SMALL,
+        self.status_label.grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=12
         )
-        self.user_label.grid(row=0, column=1, sticky="e", padx=(PAD_NORMAL, PAD_NORMAL), pady=PAD_NORMAL)
 
         self.logout_button = ctk.CTkButton(
             self.status_bar,
             text="Logout",
-            width=90,
-            command=self.logout,
+            width=80,
+            height=28,
+            command=self.logout
         )
-        self.logout_button.grid(row=0, column=2, sticky="e", padx=(0, PAD_LARGE), pady=PAD_NORMAL)
 
-        # Páginas do sistema
+        self.logout_button.grid(
+            row=0,
+            column=1,
+            padx=10,
+            pady=4
+        )
+
+        # =========================
+        # PÁGINAS
+        # =========================
         self.pages = {
             "dashboard": DashboardTab,
             "sensor": SensorPCMScreen,
