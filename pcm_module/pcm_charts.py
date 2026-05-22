@@ -1,16 +1,13 @@
 """
 pcm_charts.py
 ═════════════
-Renderização de gráficos do experimento PCM.
+Gráficos do experimento PCM — dois painéis separados fisicamente:
 
-Responsabilidade única: criar e destruir FigureCanvasTkAgg com dados do CSV.
+    Painel superior  → Notebook: temperatura + energia acumulada gerada
+    Painel inferior  → PCM:      temperatura + energia acumulada absorvida
 
-REGRAS:
-    - Não contém código do sensor infravermelho.
-    - Não faz cálculos de métricas — recebe dados já processados.
-    - Não acessa pandas.Series — apenas list[float].
-    - Protege todos os destroys com winfo_exists().
-    - Evita acúmulo de FigureCanvasTkAgg (limpa antes de renderizar).
+Sem cálculos aqui — recebe dados já processados do pcm_metrics.
+Sem código do sensor — separação total.
 """
 from __future__ import annotations
 
@@ -19,6 +16,7 @@ from typing import Optional
 import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from ui_styles import style_ax_dark, PANEL_COLOR, CARD_COLOR, BORDER_COLOR, TEXT_PRIMARY, TEXT_SECONDARY
 
 from .pcm_metrics import (
     TEMP_FUSAO_PCM,
@@ -27,53 +25,34 @@ from .pcm_metrics import (
     smooth_series,
 )
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Paleta de cores do gráfico PCM
-# ─────────────────────────────────────────────────────────────────────────────
-
-COLOR_TEMP_LINE = "#FF5733"
-COLOR_TEMP_MA = "#4FC3F7"
-COLOR_PCM_BAND = "#00FF96"
-COLOR_PICO = "#FFD700"
-COLOR_TEMPO55 = "#00BFFF"
-
-PANEL_COLOR = "#111827"
-CARD_COLOR = "#0F172A"
-BORDER_COLOR = "#334155"
-TEXT_PRIMARY = "#F3F4F6"
-TEXT_SECONDARY = "#9CA3AF"
+# ── Paleta do gráfico PCM ──────────────────────────────────────────────────
+COLOR_NOTEBOOK_TEMP   = "#F97316"   # laranja — temperatura do notebook
+COLOR_NOTEBOOK_ENERGY = "#FB923C"   # laranja claro — energia gerada
+COLOR_PCM_TEMP        = "#60A5FA"   # azul — temperatura do PCM
+COLOR_PCM_ENERGY      = "#34D399"   # verde esmeralda — energia absorvida
+COLOR_FUSAO_BAND      = "#A78BFA"   # roxo — faixa de fusão
+COLOR_PICO            = "#FFD700"   # dourado — marcador de pico
 
 
-def _style_ax(ax) -> None:
-    """Aplica estilo científico escuro padronizado a um Axes."""
-    ax.set_facecolor(CARD_COLOR)
-    ax.tick_params(colors=TEXT_SECONDARY, labelsize=11, length=4, width=1.2)
-    ax.tick_params(axis="x", pad=6)
-    ax.tick_params(axis="y", pad=4)
-    ax.grid(True, linestyle="--", linewidth=0.55, alpha=0.30, color="#475569")
-    ax.minorticks_on()
-    ax.grid(True, which="minor", linestyle=":", linewidth=0.3, alpha=0.15, color="#334155")
-    for side in ["top", "right"]:
-        ax.spines[side].set_visible(False)
-    for side in ["bottom", "left"]:
-        ax.spines[side].set_color(BORDER_COLOR)
-        ax.spines[side].set_linewidth(1.4)
+def _style(ax) -> None:
+    style_ax_dark(
+        ax,
+        card_color=CARD_COLOR,
+        border_color=BORDER_COLOR,
+        text_color=TEXT_SECONDARY,
+    )
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PCMChartFrame
-# ─────────────────────────────────────────────────────────────────────────────
 
 class PCMChartFrame(ctk.CTkFrame):
     """
-    Frame responsável exclusivamente pelos gráficos do experimento PCM (CSV).
+    Dois gráficos sobrepostos verticalmente:
+        ax_top    → Notebook  (temperatura + energia gerada)
+        ax_bottom → PCM       (temperatura + energia absorvida)
 
-    Dados de entrada: list[float] — NUNCA pandas.Series.
-    Sem código do sensor infravermelho.
+    Recebe apenas list[float] — nunca pandas.Series.
     """
 
-    def __init__(self, parent: ctk.CTkBaseClass, **kwargs) -> None:
+    def __init__(self, parent, **kwargs) -> None:
         super().__init__(parent, fg_color="transparent", **kwargs)
         self.grid_columnconfigure(0, weight=1)
         self._canvases: list[FigureCanvasTkAgg] = []
@@ -81,144 +60,188 @@ class PCMChartFrame(ctk.CTkFrame):
 
     # ── API pública ───────────────────────────────────────────────────────────
 
-    def render_temperature_chart(
+    def render_charts(
         self,
         *,
         tempo_s: list[float],
         temperatura_c: list[float],
+        energia_acum_notebook: list[float],
+        energia_acum_pcm: list[float],
         pico_temperatura: float,
         tempo_pico_s: float,
-        tempo_55c_s: Optional[float],
-        delta_t_c: float,
-        tempo_atuacao_pcm_s: float,
+        q_notebook_j: float,
+        q_pcm_j: float,
+        eficiencia: float,
+        tempo_eq_s: float,
     ) -> None:
         """
-        Renderiza o gráfico de Temperatura × Tempo.
+        Renderiza os dois painéis de gráfico.
 
-        Todos os parâmetros são tipos primitivos — list[float] ou float.
+        Painel superior  — Notebook: temperatura + energia gerada acumulada
+        Painel inferior  — PCM:      temperatura + energia absorvida acumulada
         """
         self._clear()
 
-        fig = Figure(figsize=(12.0, 6.5), dpi=100)
+        fig = Figure(figsize=(13.0, 10.0), dpi=100)
         fig.patch.set_facecolor(PANEL_COLOR)
-        ax = fig.add_subplot(111)
-        _style_ax(ax)
 
-        ax.set_title(
-            "Temperatura × Tempo — Resposta Térmica do PCM",
-            color=TEXT_PRIMARY, fontsize=16, fontweight="bold", pad=16,
+        gs = fig.add_gridspec(
+            2, 2,
+            hspace=0.38,
+            wspace=0.32,
+            left=0.07, right=0.97,
+            top=0.94, bottom=0.07,
         )
 
-        if not tempo_s or not temperatura_c:
-            ax.text(
-                0.5, 0.5,
-                "Sem dados de temperatura para plotar.",
-                transform=ax.transAxes,
-                ha="center", va="center",
-                fontsize=13, color=TEXT_SECONDARY,
-            )
-            self._finalize(fig)
-            return
+        t_min = [v / 60.0 for v in tempo_s]
+        T_smooth = smooth_series(temperatura_c, window=9)
 
-        min_temp = float(min(temperatura_c))
+        # Energias suavizadas (para visualização)
+        E_nb_s  = smooth_series(energia_acum_notebook, window=9)
+        E_pcm_s = smooth_series(energia_acum_pcm, window=9)
 
-        # Faixa de atuação PCM
-        ax.axhspan(
-            TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM,
-            color=COLOR_PCM_BAND, alpha=0.12,
-            label=f"Faixa PCM {TEMP_FUSAO_PCM:.0f}–{TEMP_SATURACAO_PCM:.0f} °C",
-            zorder=1,
-        )
+        # ── Painel superior esquerdo — Temperatura do notebook ─────────────────
+        ax_nt = fig.add_subplot(gs[0, 0])
+        _style(ax_nt)
+        self._plot_temperatura_notebook(ax_nt, t_min, T_smooth, pico_temperatura, tempo_pico_s)
 
-        # Preenchimento sob a curva
-        ax.fill_between(
-            tempo_s, temperatura_c, min_temp,
-            color=COLOR_TEMP_LINE, alpha=0.15,
-            label="Área absorvida", zorder=2,
-        )
+        # ── Painel superior direito — Energia gerada acumulada ─────────────────
+        ax_ne = fig.add_subplot(gs[0, 1])
+        _style(ax_ne)
+        self._plot_energia_notebook(ax_ne, t_min, E_nb_s, q_notebook_j)
 
-        # Linha de temperatura
-        ax.plot(
-            tempo_s, temperatura_c,
-            color=COLOR_TEMP_LINE, linewidth=3.0, alpha=0.95,
-            label="Temperatura", zorder=4,
-        )
+        # ── Painel inferior esquerdo — Temperatura do PCM ─────────────────────
+        ax_pt = fig.add_subplot(gs[1, 0])
+        _style(ax_pt)
+        self._plot_temperatura_pcm(ax_pt, t_min, T_smooth)
 
-        # Média móvel
-        t_smooth = smooth_series(temperatura_c, window=7)
-        if t_smooth:
-            ax.plot(
-                tempo_s, t_smooth,
-                color=COLOR_TEMP_MA, linewidth=2.2,
-                linestyle="--", alpha=0.85,
-                label="Média móvel (7 pts)", zorder=3,
-            )
+        # ── Painel inferior direito — Energia absorvida acumulada ──────────────
+        ax_pe = fig.add_subplot(gs[1, 1])
+        _style(ax_pe)
+        self._plot_energia_pcm(ax_pe, t_min, E_pcm_s, q_pcm_j, eficiencia, tempo_eq_s)
 
-        # Marcador de pico
-        ax.scatter(
-            [tempo_pico_s], [pico_temperatura],
-            color=COLOR_TEMP_LINE, edgecolors=COLOR_PICO,
-            linewidths=2.0, s=150, marker="*",
-            zorder=6, label=f"Pico: {pico_temperatura:.2f} °C",
-        )
-
-        # Linha vertical — tempo até 55 °C
-        if tempo_55c_s is not None:
-            ax.axvline(
-                tempo_55c_s, color=COLOR_TEMPO55,
-                linestyle=":", linewidth=2.0, alpha=0.8,
-                label=f"Tempo até 55 °C: {formatar_tempo_min_seg(tempo_55c_s)}",
-            )
-
-        # Linha vertical — tempo do pico
-        ax.axvline(
-            tempo_pico_s, color=COLOR_PICO,
-            linestyle=":", linewidth=2.0, alpha=0.8,
-            label=f"Pico em: {formatar_tempo_min_seg(tempo_pico_s)}",
-        )
-
-        # Info box
-        tempo_atuacao_min = float(tempo_atuacao_pcm_s) / 60.0
-        info = f"ΔT = {delta_t_c:.2f} °C  |  Atuação PCM: {tempo_atuacao_min:.1f} min"
-        ax.text(
-            0.02, 0.95, info,
-            transform=ax.transAxes, color="#E5E7EB",
-            fontsize=11, fontweight="bold", va="top", zorder=10,
-            bbox=dict(
-                boxstyle="round,pad=0.5",
-                facecolor=CARD_COLOR, edgecolor=BORDER_COLOR, alpha=0.8,
-            ),
-        )
-
-        ax.set_xlabel("Tempo (s)", color=TEXT_PRIMARY, fontsize=12, fontweight="bold")
-        ax.set_ylabel("Temperatura (°C)", color=TEXT_PRIMARY, fontsize=12, fontweight="bold")
-        ax.legend(
-            loc="lower right", fontsize=10,
-            framealpha=0.95, facecolor=CARD_COLOR,
-            edgecolor=BORDER_COLOR, labelcolor=TEXT_PRIMARY,
-        )
-
-        fig.subplots_adjust(left=0.08, right=0.95, top=0.93, bottom=0.10)
         self._finalize(fig)
 
     def render_placeholder(self) -> None:
-        """Exibe placeholder quando não há dados."""
         self._render_placeholder()
+
+    # ── Plots individuais ─────────────────────────────────────────────────────
+
+    def _plot_temperatura_notebook(
+        self, ax, t_min, T_smooth, pico, tempo_pico_s
+    ) -> None:
+        ax.set_title("Notebook — Temperatura", color=TEXT_PRIMARY,
+                     fontsize=13, fontweight="bold", pad=10)
+
+        if not T_smooth:
+            return
+
+        ax.plot(t_min, T_smooth, color=COLOR_NOTEBOOK_TEMP,
+                linewidth=2.8, alpha=0.95, label="T notebook", zorder=4)
+        ax.fill_between(t_min, T_smooth, min(T_smooth),
+                        color=COLOR_NOTEBOOK_TEMP, alpha=0.12, zorder=2)
+
+        # Pico
+        ax.scatter([tempo_pico_s / 60.0], [pico],
+                   color=COLOR_PICO, edgecolors="white", s=140,
+                   marker="*", zorder=7,
+                   label=f"Pico: {pico:.1f} °C")
+        ax.axvline(tempo_pico_s / 60.0, color=COLOR_PICO,
+                   linestyle=":", linewidth=1.6, alpha=0.7)
+
+        ax.set_xlabel("Tempo (min)", color=TEXT_PRIMARY, fontsize=10)
+        ax.set_ylabel("Temperatura (°C)", color=TEXT_PRIMARY, fontsize=10)
+        ax.legend(fontsize=9, facecolor=CARD_COLOR,
+                  edgecolor=BORDER_COLOR, labelcolor=TEXT_PRIMARY)
+
+    def _plot_energia_notebook(self, ax, t_min, E_nb, q_total) -> None:
+        ax.set_title("Notebook — Energia Gerada Acumulada",
+                     color=TEXT_PRIMARY, fontsize=13, fontweight="bold", pad=10)
+
+        if not E_nb:
+            return
+
+        ax.plot(t_min, E_nb, color=COLOR_NOTEBOOK_ENERGY,
+                linewidth=2.8, alpha=0.95, zorder=4)
+        ax.fill_between(t_min, E_nb, 0,
+                        color=COLOR_NOTEBOOK_ENERGY, alpha=0.18, zorder=2)
+
+        # Anotação do total
+        ax.text(0.97, 0.96,
+                f"Q_notebook\n{q_total/1000:.2f} kJ",
+                transform=ax.transAxes, ha="right", va="top",
+                fontsize=10, fontweight="bold", color=TEXT_PRIMARY,
+                bbox=dict(boxstyle="round,pad=0.4", facecolor=CARD_COLOR,
+                          edgecolor=COLOR_NOTEBOOK_ENERGY, alpha=0.9))
+
+        ax.set_xlabel("Tempo (min)", color=TEXT_PRIMARY, fontsize=10)
+        ax.set_ylabel("Energia (J)", color=TEXT_PRIMARY, fontsize=10)
+
+    def _plot_temperatura_pcm(self, ax, t_min, T_smooth) -> None:
+        ax.set_title("PCM — Temperatura", color=TEXT_PRIMARY,
+                     fontsize=13, fontweight="bold", pad=10)
+
+        if not T_smooth:
+            return
+
+        # Faixa de fusão
+        ax.axhspan(TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM,
+                   color=COLOR_FUSAO_BAND, alpha=0.12, zorder=1,
+                   label=f"Fusão {TEMP_FUSAO_PCM:.0f}–{TEMP_SATURACAO_PCM:.0f} °C")
+        ax.axhline(TEMP_FUSAO_PCM, color=COLOR_FUSAO_BAND,
+                   linewidth=0.8, linestyle="--", alpha=0.5, zorder=2)
+
+        ax.plot(t_min, T_smooth, color=COLOR_PCM_TEMP,
+                linewidth=2.8, alpha=0.95, label="T PCM", zorder=4)
+        ax.fill_between(t_min, T_smooth, min(T_smooth),
+                        color=COLOR_PCM_TEMP, alpha=0.12, zorder=2)
+
+        ax.set_xlabel("Tempo (min)", color=TEXT_PRIMARY, fontsize=10)
+        ax.set_ylabel("Temperatura (°C)", color=TEXT_PRIMARY, fontsize=10)
+        ax.legend(fontsize=9, facecolor=CARD_COLOR,
+                  edgecolor=BORDER_COLOR, labelcolor=TEXT_PRIMARY)
+
+    def _plot_energia_pcm(
+        self, ax, t_min, E_pcm, q_pcm, eficiencia, tempo_eq_s
+    ) -> None:
+        ax.set_title("PCM — Energia Absorvida Acumulada",
+                     color=TEXT_PRIMARY, fontsize=13, fontweight="bold", pad=10)
+
+        if not E_pcm:
+            return
+
+        ax.plot(t_min, E_pcm, color=COLOR_PCM_ENERGY,
+                linewidth=2.8, alpha=0.95, zorder=4)
+        ax.fill_between(t_min, E_pcm, 0,
+                        color=COLOR_PCM_ENERGY, alpha=0.18, zorder=2)
+
+        # Anotação — mostra η e t_eq
+        info = (
+            f"Q_pcm = {q_pcm:.1f} J\n"
+            f"η = {eficiencia:.2f} %\n"
+            f"t_eq = {tempo_eq_s:.0f} s"
+        )
+        ax.text(0.03, 0.97, info,
+                transform=ax.transAxes, ha="left", va="top",
+                fontsize=10, fontweight="bold", color=TEXT_PRIMARY,
+                bbox=dict(boxstyle="round,pad=0.45", facecolor=CARD_COLOR,
+                          edgecolor=COLOR_PCM_ENERGY, alpha=0.92))
+
+        ax.set_xlabel("Tempo (min)", color=TEXT_PRIMARY, fontsize=10)
+        ax.set_ylabel("Energia (J)", color=TEXT_PRIMARY, fontsize=10)
 
     # ── Internos ──────────────────────────────────────────────────────────────
 
     def _render_placeholder(self) -> None:
         self._clear()
-        fig = Figure(figsize=(11.5, 7.2), dpi=100)
+        fig = Figure(figsize=(13.0, 9.0), dpi=100)
         fig.patch.set_facecolor(PANEL_COLOR)
         ax = fig.add_subplot(111)
         ax.set_facecolor(CARD_COLOR)
-        ax.text(
-            0.5, 0.5,
-            "Os gráficos aparecerão aqui após a importação do CSV.",
-            ha="center", va="center",
-            fontsize=15, color=TEXT_SECONDARY,
-        )
+        ax.text(0.5, 0.5,
+                "Importe um CSV para ver os gráficos de Temperatura e Energia.",
+                ha="center", va="center", fontsize=14,
+                color=TEXT_SECONDARY, style="italic")
         ax.set_xticks([])
         ax.set_yticks([])
         for side in ["top", "right", "bottom", "left"]:
@@ -226,29 +249,21 @@ class PCMChartFrame(ctk.CTkFrame):
         self._finalize(fig)
 
     def _finalize(self, fig: Figure) -> None:
-        """Adiciona figura ao frame e registra canvas."""
         canvas = FigureCanvasTkAgg(fig, master=self)
-        widget = canvas.get_tk_widget()
-        widget.grid(row=0, column=0, sticky="nsew")
+        canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
         canvas.draw_idle()
         self._canvases.append(canvas)
 
     def _clear(self) -> None:
-        """
-        Remove todos os canvas acumulados com proteção winfo_exists().
-
-        Evita memory leak e múltiplos FigureCanvasTkAgg sobrepostos.
-        """
-        for canvas in self._canvases:
+        for c in self._canvases:
             try:
-                widget = canvas.get_tk_widget()
-                if widget.winfo_exists():
-                    widget.destroy()
+                w = c.get_tk_widget()
+                if w.winfo_exists():
+                    w.destroy()
             except Exception:
                 pass
         self._canvases.clear()
 
     def destroy(self) -> None:
-        """Override seguro — limpa canvases antes de destruir o frame."""
         self._clear()
         super().destroy()

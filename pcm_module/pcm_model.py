@@ -1,11 +1,10 @@
 """
 pcm_model.py
 ════════════
-Modelos de dados do sistema PCM.
+Modelos de dados — dataclasses com campos físicos corretos.
 
-REGRA CRÍTICA: nenhum campo pode armazenar pandas.Series.
-Todos os campos de séries temporais são list[float].
-Conversão obrigatória no PCMService antes de instanciar.
+REGRA: nenhum campo armazena pandas.Series.
+Todos os campos de séries são list[float].
 """
 from __future__ import annotations
 
@@ -18,51 +17,72 @@ class PCMResult:
     """
     Resultado completo do processamento de um CSV de experimento PCM.
 
-    Todos os campos de séries temporais são list[float] — NUNCA pandas.Series.
-    O PCMService é responsável por converter antes de instanciar.
+    Campos físicos adicionados:
+        q_notebook_j  — energia total gerada pelo notebook (J)
+        q_pcm_j       — energia absorvida pelo PCM  (J)
+        eficiencia    — η = Q_pcm / Q_notebook × 100  (%)
+        tempo_eq_s    — tempo equivalente de atuação (s)
+        energia_acum_notebook  — série temporal (J)
+        energia_acum_pcm       — série temporal (J)
     """
 
-    # ── Séries temporais ─────────────────────────────────────────────────────
-    tempo_s: list[float] = field(default_factory=list)
-    temperatura_c: list[float] = field(default_factory=list)
-    potencia_w: list[float] = field(default_factory=list)
-    energia_j: list[float] = field(default_factory=list)
+    # ── Séries temporais brutas ───────────────────────────────────────────────
+    tempo_s: list[float]        = field(default_factory=list)
+    temperatura_c: list[float]  = field(default_factory=list)
+    potencia_w: list[float]     = field(default_factory=list)
+    energia_j: list[float]      = field(default_factory=list)
 
-    # ── Escalares calculados ─────────────────────────────────────────────────
-    energia_total: float = 0.0
-    energia_teorica: float = 0.0
-    potencia_media: float = 0.0
-    massa_pcm: float = 0.0
-    pico_temperatura: float = 0.0
+    # ── Séries derivadas ──────────────────────────────────────────────────────
+    energia_acum_notebook: list[float] = field(default_factory=list)
+    energia_acum_pcm: list[float]      = field(default_factory=list)
+
+    # ── Escalares físicos ─────────────────────────────────────────────────────
+    q_notebook_j: float   = 0.0   # energia gerada (J)
+    q_pcm_j: float        = 0.0   # energia absorvida pelo PCM (J)
+    eficiencia: float     = 0.0   # η (%)
+    tempo_eq_s: float     = 0.0   # tempo equivalente (s)
+
+    # ── Escalares legados ─────────────────────────────────────────────────────
+    energia_total: float         = 0.0
+    energia_teorica: float       = 0.0
+    potencia_media: float        = 0.0
+    massa_pcm: float             = 0.0
+    pico_temperatura: float      = 0.0
     tempo_pico_temperatura: float = 0.0
-    temperatura_media: float = 0.0
-    delta_tempo: float = 0.0
+    temperatura_media: float     = 0.0
+    delta_tempo: float           = 0.0
+    temperatura_inicial: float   = 0.0
+    temperatura_final: float     = 0.0
 
-    # ── Metadados textuais ───────────────────────────────────────────────────
-    analise_tecnica: list[str] = field(default_factory=list)
-    calculo_detalhado: list[str] = field(default_factory=list)
-    csv_preview: list[dict[str, str]] = field(default_factory=list)
+    # ── Metadados textuais ────────────────────────────────────────────────────
+    analise_tecnica: list[str]          = field(default_factory=list)
+    calculo_detalhado: list[str]        = field(default_factory=list)
+    csv_preview: list[dict[str, str]]   = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        """Valida e garante que todas as séries são list[float]."""
-        for attr in ("tempo_s", "temperatura_c", "potencia_w", "energia_j"):
-            value = getattr(self, attr)
-            # Se veio como pandas.Series ou outro iterável, converte
-            if not isinstance(value, list):
+        """Garante tipos corretos — bloqueia pandas.Series."""
+        _listas = (
+            "tempo_s", "temperatura_c", "potencia_w", "energia_j",
+            "energia_acum_notebook", "energia_acum_pcm",
+        )
+        for attr in _listas:
+            v = getattr(self, attr)
+            if not isinstance(v, list):
                 try:
-                    setattr(self, attr, [float(v) for v in value])
+                    setattr(self, attr, [float(x) for x in v])
                 except Exception:
                     setattr(self, attr, [])
             else:
-                # Garante que todos os elementos são float
-                setattr(self, attr, [float(v) for v in value])
+                setattr(self, attr, [float(x) for x in v])
 
-        # Garante escalares float
-        for attr in (
+        _escalares = (
+            "q_notebook_j", "q_pcm_j", "eficiencia", "tempo_eq_s",
             "energia_total", "energia_teorica", "potencia_media",
             "massa_pcm", "pico_temperatura", "tempo_pico_temperatura",
             "temperatura_media", "delta_tempo",
-        ):
+            "temperatura_inicial", "temperatura_final",
+        )
+        for attr in _escalares:
             try:
                 setattr(self, attr, float(getattr(self, attr)))
             except (TypeError, ValueError):

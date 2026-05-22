@@ -1,254 +1,258 @@
 """
 pcm_kpi.py
 ══════════
-Componente de KPI cards do dashboard PCM.
+KPI cards do dashboard PCM.
 
-Responsabilidade única: renderizar e atualizar cards de métricas.
-Sem lógica de cálculo, sem matplotlib, sem I/O.
+CARDS FÍSICOS CORRETOS:
+    1. Energia Gerada (notebook)    — Q_notebook = P × t
+    2. Energia Absorvida (PCM)      — Q_pcm = m·c·ΔT
+    3. Eficiência Térmica           — η = Q_pcm / Q_notebook × 100
+    4. Tempo Equivalente            — t_eq = Q_pcm / P
+    5. Duração do Experimento       — total em minutos
+    6. Massa PCM                    — estimativa em gramas
+    7. ΔT do PCM                    — variação de temperatura real
+    8. Potência Média               — W
+
+COMPONENTE COMPARTILHADO:
+    ThermalCard — usado por pcm_kpi.py E sensor_pcm_screen.py.
+    Mesma identidade visual, sem duplicação.
 """
 from __future__ import annotations
 
 from typing import Optional
 
 import customtkinter as ctk
+from ui_styles import (
+    Tooltip,
+    PANEL_COLOR, CARD_COLOR, BORDER_COLOR,
+    TEXT_PRIMARY, TEXT_SECONDARY,
+    FONT_LABEL, FONT_METRIC, FONT_SMALL,
+    THEME_COLORS,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tooltip helper
+# ThermalCard — componente visual COMPARTILHADO
+# Usado por PCMKPIFrame e SensorKPIFrame sem duplicar estilos
 # ─────────────────────────────────────────────────────────────────────────────
 
-class _Tooltip:
-    """Tooltip flutuante para widgets customtkinter."""
+class ThermalCard(ctk.CTkFrame):
+    """
+    Card de métrica térmica padronizado.
 
-    def __init__(self, widget: ctk.CTkBaseClass, text: str) -> None:
-        self.widget = widget
-        self.text = text
-        self._win: Optional[ctk.CTkToplevel] = None
-        widget.bind("<Enter>", self._show, add="+")
-        widget.bind("<Leave>", self._hide, add="+")
+    Identidade visual única — usada em todo o sistema PCM.
+    Parâmetros:
+        accent_color — cor da barra de topo (diferencia PCM vs Sensor)
+    """
 
-    def _show(self, _event=None) -> None:
-        if self._win is not None:
-            return
-        try:
-            x = self.widget.winfo_rootx() + 14
-            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 10
-        except Exception:
-            return
-
-        win = ctk.CTkToplevel(self.widget)
-        win.overrideredirect(True)
-        try:
-            win.attributes("-topmost", True)
-        except Exception:
-            pass
-        win.geometry(f"+{x}+{y}")
-
-        frame = ctk.CTkFrame(
-            win, fg_color="#0B0F16", corner_radius=10,
-            border_width=1, border_color="#334155",
+    def __init__(
+        self,
+        parent,
+        *,
+        title: str,
+        tooltip: str = "",
+        accent_color: str = THEME_COLORS["primary"],
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            parent,
+            fg_color=PANEL_COLOR,
+            corner_radius=16,
+            border_width=1,
+            border_color=BORDER_COLOR,
+            **kwargs,
         )
-        frame.pack(fill="both", expand=True)
-        ctk.CTkLabel(
-            frame,
-            text=self.text,
-            font=("Arial", 12),
-            text_color="#F3F4F6",
+
+        # Barra de acento no topo
+        ctk.CTkFrame(
+            self,
+            fg_color=accent_color,
+            height=3,
+            corner_radius=0,
+        ).pack(fill="x")
+
+        # Título
+        title_lbl = ctk.CTkLabel(
+            self,
+            text=title,
+            font=FONT_LABEL,
+            text_color=TEXT_SECONDARY,
+            anchor="w",
+        )
+        title_lbl.pack(anchor="w", padx=16, pady=(10, 2))
+        if tooltip:
+            Tooltip(title_lbl, tooltip)
+
+        # Valor principal
+        self._value_lbl = ctk.CTkLabel(
+            self,
+            text="--",
+            font=FONT_METRIC,
+            text_color=TEXT_PRIMARY,
+            anchor="w",
             justify="left",
-            wraplength=360,
-        ).pack(padx=12, pady=10)
-        self._win = win
+            wraplength=300,
+        )
+        self._value_lbl.pack(anchor="w", padx=16, pady=(0, 4))
 
-    def _hide(self, _event=None) -> None:
-        if self._win is None:
-            return
-        try:
-            self._win.destroy()
-        except Exception:
-            pass
-        self._win = None
+        # Sub-label (unidade / contexto)
+        self._sub_lbl = ctk.CTkLabel(
+            self,
+            text="",
+            font=FONT_SMALL,
+            text_color=TEXT_SECONDARY,
+            anchor="w",
+        )
+        self._sub_lbl.pack(anchor="w", padx=16, pady=(0, 12))
+
+    def set_value(self, text: str, *, color: str = TEXT_PRIMARY) -> None:
+        if self._value_lbl.winfo_exists():
+            self._value_lbl.configure(text=text, text_color=color)
+
+    def set_sub(self, text: str) -> None:
+        if self._sub_lbl.winfo_exists():
+            self._sub_lbl.configure(text=text)
+
+    def reset(self) -> None:
+        self.set_value("--")
+        self.set_sub("")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# KPI Frame
+# Definição dos KPI cards do PCM — métricas físicas corretas
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Definição dos cards — (chave, tooltip)
-KPI_DEFS: list[tuple[str, str]] = [
+_PCM_KPI_DEFS: list[tuple[str, str]] = [
     (
-        "Energia Total",
-        "Energia total integrada ao longo do ensaio (J).",
+        "Energia Gerada",
+        "Q_notebook = P × t  (J ou kJ)\nEnergia total produzida pelo notebook durante o experimento.",
     ),
     (
-        "Potência Média",
-        "Potência média aplicada/observada durante o ensaio (W).",
-    ),
-    (
-        "Massa PCM",
-        "Massa estimada de PCM necessária para absorver a energia do ensaio (g).",
-    ),
-    (
-        "Erro Percentual",
-        "Erro percentual: energia_perdida / energia_total × 100 (%).",
-    ),
-    (
-        "Tempo de Atuação do PCM",
-        "Tempo total em que 50 °C ≤ T ≤ 60 °C (min).",
-    ),
-    (
-        "Delta T",
-        "Variação térmica total: max(T) − min(T) (°C).",
+        "Energia Absorvida PCM",
+        "Q_pcm = m · c · ΔT  (J)\nCalor sensível absorvido pelo PCM.\nEquação correta para experimento sem mudança de fase.",
     ),
     (
         "Eficiência Térmica",
-        "Eficiência: energia_real / energia_ideal × 100 (%), entre 60–99 %.",
+        "η = Q_pcm / Q_notebook × 100  (%)\nFração da energia do notebook desviada para o PCM.",
     ),
     (
-        "Energia Ideal",
-        "Energia ideal que o sistema deveria absorver para desempenho perfeito (J).",
+        "Tempo Equivalente",
+        "t_eq = Q_pcm / P_notebook  (s)\nPor quantos segundos o PCM poderia alimentar o notebook sozinho.",
     ),
     (
         "Duração do Experimento",
         "Duração total do ensaio (min).",
+    ),
+    (
+        "Massa PCM",
+        "Estimativa de massa de PCM calculada via balanço energético (g).",
+    ),
+    (
+        "ΔT do PCM",
+        "Variação de temperatura do PCM: T_final − T_inicial  (°C).",
+    ),
+    (
+        "Potência Média",
+        "Potência média da fonte de calor durante o ensaio (W).",
     ),
 ]
 
 
 class PCMKPIFrame(ctk.CTkFrame):
     """
-    Grade de KPI cards do experimento PCM.
+    Grade de 8 KPI cards do experimento PCM — 2 linhas × 4 colunas.
 
-    Layout: 3 linhas × 4 colunas (última linha pode ter menos cards).
-    Atualização centralizada via update_kpis(metricas).
+    Atualização via update_kpis() — método centralizado.
+    Usa ThermalCard para identidade visual compartilhada com o sensor.
     """
 
-    # Paleta de cores — deve ser consistente com PCMCalcScreen
-    PANEL_COLOR = "#111827"
-    CARD_COLOR = "#0F172A"
-    BORDER_COLOR = "#334155"
-    TEXT_PRIMARY = "#F3F4F6"
-    TEXT_SECONDARY = "#9CA3AF"
+    _ACCENT = THEME_COLORS["primary"]   # ciano — identidade PCM
 
-    def __init__(self, parent: ctk.CTkBaseClass, **kwargs) -> None:
+    def __init__(self, parent, **kwargs) -> None:
         super().__init__(parent, fg_color="transparent", **kwargs)
-        self._values: dict[str, ctk.CTkLabel] = {}
-        self._subvalues: dict[str, ctk.CTkLabel] = {}
+        self._cards: dict[str, ThermalCard] = {}
         self._build()
 
     def _build(self) -> None:
         cols = 4
-        for col in range(cols):
-            self.grid_columnconfigure(col, weight=1, uniform="kpi")
+        for c in range(cols):
+            self.grid_columnconfigure(c, weight=1, uniform="kpi")
 
-        for idx, (key, tooltip) in enumerate(KPI_DEFS):
-            self._create_card(idx, key, tooltip, cols=cols)
-
-    def _create_card(self, index: int, title: str, tooltip: str, *, cols: int) -> None:
-        card = ctk.CTkFrame(
-            self,
-            fg_color=self.PANEL_COLOR,
-            corner_radius=18,
-            border_width=1,
-            border_color=self.BORDER_COLOR,
-        )
-        row, col = divmod(index, cols)
-        card.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
-
-        title_lbl = ctk.CTkLabel(
-            card,
-            text=title,
-            font=("Arial", 14, "bold"),
-            text_color=self.TEXT_SECONDARY,
-        )
-        title_lbl.pack(anchor="w", padx=18, pady=(16, 8))
-        _Tooltip(title_lbl, tooltip)
-
-        value_lbl = ctk.CTkLabel(
-            card,
-            text="--",
-            font=("Arial", 22, "bold"),
-            text_color=self.TEXT_PRIMARY,
-            justify="left",
-            wraplength=320,
-        )
-        value_lbl.pack(anchor="w", padx=18, pady=(0, 8))
-        self._values[title] = value_lbl
-
-        sub_lbl = ctk.CTkLabel(
-            card,
-            text="",
-            font=("Arial", 12),
-            text_color=self.TEXT_SECONDARY,
-            justify="left",
-            wraplength=320,
-        )
-        sub_lbl.pack(anchor="w", padx=18, pady=(0, 12))
-        self._subvalues[title] = sub_lbl
+        for idx, (key, tip) in enumerate(_PCM_KPI_DEFS):
+            card = ThermalCard(
+                self,
+                title=key,
+                tooltip=tip,
+                accent_color=self._ACCENT,
+            )
+            row, col = divmod(idx, cols)
+            card.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
+            self._cards[key] = card
 
     # ── API pública ───────────────────────────────────────────────────────────
 
     def update_kpis(
         self,
         *,
-        energia_total: float,
-        potencia_media: float,
-        massa_pcm: float,
-        erro_percentual: Optional[float],
-        tempo_atuacao_pcm_s: float,
-        delta_t_c: float,
-        eficiencia_percent: Optional[float],
-        energia_ideal_j: Optional[float],
+        q_notebook_j: float,
+        q_pcm_j: float,
+        eficiencia: float,
+        tempo_eq_s: float,
         duracao_min: Optional[float],
+        massa_pcm_g: float,
+        delta_t_c: float,
+        potencia_media: float,
     ) -> None:
         """
-        Atualiza todos os cards de uma vez.
-
-        Método central: evita self._values["..."].configure() espalhado.
-        Todos os parâmetros são tipos primitivos Python — nunca pandas.Series.
+        Atualiza todos os cards de uma vez com métricas físicas corretas.
+        Todos os parâmetros são tipos primitivos — nunca pandas.Series.
         """
-        self._set("Energia Total", f"{energia_total:.0f} J")
-        self._set("Potência Média", f"{potencia_media:.2f} W")
-        self._set("Massa PCM", f"{massa_pcm:.2f} g")
-        self._set(
-            "Erro Percentual",
-            f"{erro_percentual:.1f} %" if erro_percentual is not None else "--",
-        )
-
-        tempo_pcm_min = float(tempo_atuacao_pcm_s) / 60.0
-        self._set("Tempo de Atuação do PCM", f"{tempo_pcm_min:.1f} min")
-        self._set_sub("Tempo de Atuação do PCM", "Faixa: 50–60 °C")
-
-        self._set("Delta T", f"{delta_t_c:.2f} °C")
-        self._set(
-            "Eficiência Térmica",
-            f"{eficiencia_percent:.1f} %" if eficiencia_percent is not None else "--",
-        )
-        self._set(
-            "Energia Ideal",
-            f"{energia_ideal_j:.0f} J" if energia_ideal_j is not None else "--",
-        )
-        self._set(
-            "Duração do Experimento",
-            f"{duracao_min:.2f} min" if duracao_min is not None else "--",
-        )
+        self._set("Energia Gerada",       _fmt_energia(q_notebook_j),
+                  sub=f"Q = P × t = {q_notebook_j/1000:.2f} kJ")
+        self._set("Energia Absorvida PCM", _fmt_energia(q_pcm_j),
+                  sub=f"Q = m·c·ΔT = {q_pcm_j:.1f} J")
+        self._set("Eficiência Térmica",    f"{eficiencia:.2f} %",
+                  color=_cor_eficiencia(eficiencia),
+                  sub="η = Q_pcm / Q_notebook")
+        self._set("Tempo Equivalente",     f"{tempo_eq_s:.0f} s",
+                  sub=f"≈ {tempo_eq_s/60:.1f} min")
+        self._set("Duração do Experimento",
+                  f"{duracao_min:.1f} min" if duracao_min else "--")
+        self._set("Massa PCM",             f"{massa_pcm_g:.2f} g")
+        self._set("ΔT do PCM",             f"{delta_t_c:.2f} °C")
+        self._set("Potência Média",         f"{potencia_media:.1f} W")
 
     def reset(self) -> None:
-        """Reseta todos os cards para o estado inicial '--'."""
-        for lbl in self._values.values():
-            if lbl.winfo_exists():
-                lbl.configure(text="--")
-        for lbl in self._subvalues.values():
-            if lbl.winfo_exists():
-                lbl.configure(text="")
+        for card in self._cards.values():
+            card.reset()
 
-    # ── Helpers internos ──────────────────────────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _set(self, key: str, text: str) -> None:
-        lbl = self._values.get(key)
-        if lbl is not None and lbl.winfo_exists():
-            lbl.configure(text=text)
+    def _set(
+        self,
+        key: str,
+        text: str,
+        *,
+        color: str = TEXT_PRIMARY,
+        sub: str = "",
+    ) -> None:
+        card = self._cards.get(key)
+        if card:
+            card.set_value(text, color=color)
+            if sub:
+                card.set_sub(sub)
 
-    def _set_sub(self, key: str, text: str) -> None:
-        lbl = self._subvalues.get(key)
-        if lbl is not None and lbl.winfo_exists():
-            lbl.configure(text=text)
+
+def _fmt_energia(j: float) -> str:
+    if j >= 1000:
+        return f"{j/1000:.2f} kJ"
+    return f"{j:.1f} J"
+
+
+def _cor_eficiencia(eta: float) -> str:
+    """Verde para alta eficiência, amarelo/vermelho para baixa."""
+    if eta >= 5.0:
+        return THEME_COLORS["export"]     # verde
+    if eta >= 1.0:
+        return "#FCD34D"                   # amarelo
+    return "#F87171"                       # vermelho suave
