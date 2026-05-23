@@ -193,24 +193,16 @@ class PCMCalcScreen(ctk.CTkFrame):
         )
     def _on_pcm_result(self, result):
 
-        metricas = result.metricas
-
         # =========================
         # KPI CARDS
         # =========================
         self.kpi_frame.update_kpis(
-
-            energia_total_j=metricas["q_notebook_j"],
-
-            potencia_media=metricas["potencia_media"],
-
-            massa_pcm_g=metricas["massa_pcm_g"],
-
-            erro_percentual=metricas["erro_percentual"],
-
-            delta_t_c=metricas["delta_t_c"],
-
-            duracao_min=metricas["duracao_min"],
+            q_notebook_j=result.q_notebook_j,
+            q_pcm_j=result.q_pcm_j,
+            eficiencia=result.eficiencia,
+            tempo_eq_s=result.tempo_eq_s,
+            potencia_w=result.potencia_media,
+            duracao_min=result.delta_tempo / 60.0,
         )
 
         # =========================
@@ -219,15 +211,15 @@ class PCMCalcScreen(ctk.CTkFrame):
         self.chart_frame.render_charts(
             tempo_s=result.tempo_s,
             temperatura_c=result.temperatura_c,
-            pico_temperatura=metricas["pico_temp_c"],
-            tempo_pico_s=metricas["tempo_pico_s"],
+            pico_temperatura=result.pico_temperatura,
+            tempo_pico_s=result.tempo_pico_temperatura,
         )
 
         # =========================
         # ANÁLISE
         # =========================
         self.analysis_frame.update_analysis(result)
-        
+            
     def _import_sensor_csv(self):
 
         fp = filedialog.askopenfilename(

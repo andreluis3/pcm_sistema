@@ -87,6 +87,7 @@ class SensorPCMResult:
     # Estado do PCM com base na temperatura observada
     estado_pcm: str = "Estável"
 
+
     # Tempo em que o sensor ficou dentro da faixa de atuação do PCM
     tempo_atuacao_pcm_s: float = 0.0
 
@@ -332,6 +333,8 @@ class PCMTemperatureSensor:
             energia_latente_j=energia_latente,
             eficiencia_termica=eficiencia_termica,
             erro_percentual=erro_percentual,
+            
+            
         )
 
 

@@ -440,6 +440,37 @@ def calcular_estabilizacao(
             return float(tempo_s[i])
     return None
 
+def calcular_massa_ideal_pcm(
+    energia_j: float,
+    calor_especifico: float,
+    calor_latente: float,
+    delta_t: float,
+) -> float:
+
+    capacidade_total = (
+        calor_especifico * delta_t
+        + calor_latente
+    )
+
+    if capacidade_total <= 0:
+        return 0.0
+
+    return energia_j / capacidade_total
+
+def calcular_eficiencia_pcm(
+    massa_utilizada_kg: float,
+    massa_ideal_kg: float,
+) -> float:
+
+    if massa_ideal_kg <= 0:
+        return 0.0
+
+    eficiencia = (
+        massa_utilizada_kg
+        / massa_ideal_kg
+    ) * 100.0
+
+    return min(100.0, eficiencia)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pacote de métricas completo — retorna tudo de uma vez

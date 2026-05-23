@@ -25,9 +25,11 @@ from .pcm_metrics import (
     POTENCIA_NOTEBOOK_W,
     TEMP_FUSAO_PCM,
     TEMP_SATURACAO_PCM,
+    calcular_eficiencia_pcm,
     calcular_energia_notebook,
     calcular_energia_absorvida_pcm,
     calcular_eficiencia,
+    calcular_massa_ideal_pcm,
     calcular_tempo_equivalente,
     calcular_energia_acumulada_notebook,
     calcular_energia_acumulada_pcm,
@@ -143,28 +145,55 @@ class PCMService:
             duracao_s=delta_tempo,
             massa_pcm_kg=MASSA_PCM_KG,
         )
+        
+        delta_t = temperatura_final - temperatura_inicial
 
+        massa_ideal = calcular_massa_ideal_pcm(
+            energia_j=q_notebook,
+            calor_especifico=CALOR_ESPECIFICO_PCM,
+            calor_latente=CALOR_LATENTE_PCM,
+            delta_t=delta_t,
+        )
+
+        eficiencia = calcular_eficiencia_pcm(
+            massa_utilizada_kg=massa_pcm_g / 1000.0,
+            massa_ideal_kg=massa_ideal,
+        )
+        
+        
         return PCMResult(
             tempo_s=tempo_s,
             temperatura_c=temperatura_c,
             potencia_w=potencia_w,
             energia_j=energia_j,
+
             energia_acum_notebook=energia_acum_nb,
             energia_acum_pcm=energia_acum_pcm,
+
             q_notebook_j=q_notebook,
             q_pcm_j=q_pcm,
             eficiencia=eficiencia,
             tempo_eq_s=tempo_eq,
+
             energia_total=q_notebook,
             energia_teorica=q_pcm,
+
             potencia_media=potencia_media_val,
             massa_pcm=massa_pcm_g,
+
             pico_temperatura=pico_temperatura,
             tempo_pico_temperatura=tempo_pico,
+
             temperatura_media=temperatura_media,
+
             delta_tempo=delta_tempo,
+
             temperatura_inicial=temperatura_inicial,
             temperatura_final=temperatura_final,
+
+            massa_pcm_necessaria=massa_ideal,
+            massa_pcm_utilizada=massa_pcm_g / 1000.0,
+
             analise_tecnica=analise,
             calculo_detalhado=calculo,
             csv_preview=preview,

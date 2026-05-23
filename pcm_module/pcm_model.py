@@ -11,53 +11,114 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-
 @dataclass
 class PCMResult:
     """
-    Resultado completo do processamento de um CSV de experimento PCM.
+    Resultado completo do processamento de um experimento PCM.
 
-    Campos físicos adicionados:
-        q_notebook_j  — energia total gerada pelo notebook (J)
-        q_pcm_j       — energia absorvida pelo PCM  (J)
-        eficiencia    — η = Q_pcm / Q_notebook × 100  (%)
-        tempo_eq_s    — tempo equivalente de atuação (s)
-        energia_acum_notebook  — série temporal (J)
-        energia_acum_pcm       — série temporal (J)
+    Estrutura nova:
+    ─────────────────────────────────────────────
+    - Dados crus do CSV
+    - Séries derivadas
+    - Métricas físicas
+    - Informações térmicas
+    - Dados auxiliares para UI
     """
 
-    # ── Séries temporais brutas ───────────────────────────────────────────────
-    tempo_s: list[float]        = field(default_factory=list)
-    temperatura_c: list[float]  = field(default_factory=list)
-    potencia_w: list[float]     = field(default_factory=list)
-    energia_j: list[float]      = field(default_factory=list)
+    # =========================================================
+    # SÉRIES TEMPORAIS BRUTAS
+    # =========================================================
 
-    # ── Séries derivadas ──────────────────────────────────────────────────────
+    tempo_s: list[float] = field(default_factory=list)
+
+    temperatura_c: list[float] = field(default_factory=list)
+
+    potencia_w: list[float] = field(default_factory=list)
+
+    energia_j: list[float] = field(default_factory=list)
+
+    # =========================================================
+    # SÉRIES DERIVADAS
+    # =========================================================
+
     energia_acum_notebook: list[float] = field(default_factory=list)
-    energia_acum_pcm: list[float]      = field(default_factory=list)
 
-    # ── Escalares físicos ─────────────────────────────────────────────────────
-    q_notebook_j: float   = 0.0   # energia gerada (J)
-    q_pcm_j: float        = 0.0   # energia absorvida pelo PCM (J)
-    eficiencia: float     = 0.0   # η (%)
-    tempo_eq_s: float     = 0.0   # tempo equivalente (s)
+    energia_acum_pcm: list[float] = field(default_factory=list)
 
-    # ── Escalares legados ─────────────────────────────────────────────────────
-    energia_total: float         = 0.0
-    energia_teorica: float       = 0.0
-    potencia_media: float        = 0.0
-    massa_pcm: float             = 0.0
-    pico_temperatura: float      = 0.0
+    # =========================================================
+    # ENERGIAS FÍSICAS
+    # =========================================================
+
+    # Energia total gerada pelo notebook
+    q_notebook_j: float = 0.0
+
+    # Energia absorvida pelo PCM
+    q_pcm_j: float = 0.0
+
+    # Eficiência térmica (%)
+    eficiencia: float = 0.0
+
+    # Tempo equivalente de atuação térmica
+    tempo_eq_s: float = 0.0
+
+    # =========================================================
+    # MÉTRICAS TÉRMICAS
+    # =========================================================
+
+    potencia_media: float = 0.0
+
+    massa_pcm: float = 0.0
+
+    massa_pcm_g: float = 0.0
+    
+    massa_pcm_necessaria: float = 0.0
+    massa_pcm_utilizada: float = 0.0
+
+    temperatura_media: float = 0.0
+
+    temperatura_inicial: float = 0.0
+
+    temperatura_final: float = 0.0
+
+    pico_temperatura: float = 0.0
+
     tempo_pico_temperatura: float = 0.0
-    temperatura_media: float     = 0.0
-    delta_tempo: float           = 0.0
-    temperatura_inicial: float   = 0.0
-    temperatura_final: float     = 0.0
 
-    # ── Metadados textuais ────────────────────────────────────────────────────
-    analise_tecnica: list[str]          = field(default_factory=list)
-    calculo_detalhado: list[str]        = field(default_factory=list)
-    csv_preview: list[dict[str, str]]   = field(default_factory=list)
+    delta_t_c: float = 0.0
+
+    # =========================================================
+    # TEMPORAIS
+    # =========================================================
+
+    duracao_s: float = 0.0
+
+    duracao_min: float = 0.0
+
+    delta_tempo: float = 0.0
+
+    tempo_ate_55c_s: Optional[float] = None
+
+    tempo_atuacao_pcm_s: float = 0.0
+
+    # =========================================================
+    # ENERGIAS AUXILIARES
+    # =========================================================
+
+    energia_total: float = 0.0
+
+    energia_teorica: float = 0.0
+
+    erro_percentual: float = 0.0
+
+    # =========================================================
+    # TEXTO / UI
+    # =========================================================
+
+    analise_tecnica: list[str] = field(default_factory=list)
+
+    calculo_detalhado: list[str] = field(default_factory=list)
+
+    csv_preview: list[dict[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Garante tipos corretos — bloqueia pandas.Series."""
