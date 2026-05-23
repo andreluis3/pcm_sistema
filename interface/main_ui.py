@@ -131,7 +131,6 @@ class MainUI(ctk.CTkFrame):
         # =========================
         self.pages = {
             "dashboard": DashboardTab,
-            "sensor": SensorPCMScreen,
             "materiais": MaterialsView,
             "experimentos": ExperimentsPage,
             "calculos": ThermalCalculationsPage,

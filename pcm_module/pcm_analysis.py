@@ -88,7 +88,7 @@ class PCMAnalysisFrame(ctk.CTkFrame):
 
     # ── API pública ───────────────────────────────────────────────────────────
 
-    def update(self, result: PCMResult) -> None:
+    def update_analysis(self, result: PCMResult) -> None:
         """
         Atualiza análise técnica e preview a partir de um PCMResult.
 

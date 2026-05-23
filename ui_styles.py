@@ -228,59 +228,51 @@ def style_ax_dark(
         ax.spines[side].set_color(border_color)
         ax.spines[side].set_linewidth(1.4)
 
-
 class Tooltip:
-    def __init__(self, widget, text: str) -> None:
+
+    def __init__(self, widget, text: str):
         self.widget = widget
         self.text = text
-        self._win = None
+        self.tipwindow = None
 
-        widget.bind("<Enter>", self._show, add="+")
-        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<Enter>", self.show_tooltip)
+        widget.bind("<Leave>", self.hide_tooltip)
+        widget.bind("<ButtonPress>", self.hide_tooltip)
 
-    def _show(self, _event=None) -> None:
+    def show_tooltip(self, event=None):
 
-        if self._win is not None:
+        if self.tipwindow or not self.text:
             return
 
-        try:
-            x = self.widget.winfo_rootx() + 14
-            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 10
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + 20
 
-        except Exception:
-            return
+        self.tipwindow = tw = ctk.CTkToplevel(self.widget)
 
-        win = ctk.CTkToplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.attributes("-topmost", True)
 
-        win.overrideredirect(True)
+        tw.geometry(f"+{x}+{y}")
 
-        try:
-            win.attributes("-topmost", True)
-        except Exception:
-            pass
-
-        win.geometry(f"+{x}+{y}")
-
-        frame = ctk.CTkFrame(
-            win,
-            fg_color="#0B0F16",
-            corner_radius=10,
-            border_width=1,
-            border_color="#334155",
+        label = ctk.CTkLabel(
+            tw,
+            text=self.text,
+            fg_color="#1F2937",
+            text_color="white",
+            corner_radius=8,
+            justify="left",
+            padx=12,
+            pady=8,
+            wraplength=320,
         )
 
-        frame.pack(fill="both", expand=True)
+        label.pack()
 
-        ctk.CTkLabel(
-            frame,
-            text=self.text,
-            font=("Arial", 12),
-            text_color="#F3F4F6",
-            justify="left",
-            wraplength=360,
-        ).pack(padx=12, pady=10)
+    def hide_tooltip(self, event=None):
 
-        self._win = win
+        if self.tipwindow:
+            self.tipwindow.destroy()
+            self.tipwindow = None
 
     def _hide(self, _event=None) -> None:
 

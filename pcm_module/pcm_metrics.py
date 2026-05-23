@@ -457,90 +457,84 @@ def calcular_metricas_experimento(
     delta_tempo: float,
     temperatura_media: float,
     potencia_w: Optional[list[float]] = None,
-    *,
-    temperatura_alvo_c: float = 55.0,
-    massa_pcm_kg: float = MASSA_PCM_KG,
 ) -> dict[str, Optional[float]]:
-    """
-    Calcula TODAS as métricas do experimento PCM.
 
-    Retorna dict[str, float | None] — nunca pandas.Series.
-
-    Cálculos físicos corretos:
-        Q_notebook  = P × t  (energia gerada)
-        Q_pcm       = m·c·ΔT (energia absorvida — sem fase)
-        η           = Q_pcm / Q_notebook × 100
-        t_eq        = Q_pcm / P_notebook
-    """
-    pw = potencia_w or []
-
-    # Duração
-    duracao_s: float = float(max(tempo_s)) if tempo_s else float(delta_tempo)
-    duracao_min: Optional[float] = duracao_s / 60.0 if duracao_s > 0.0 else None
-
-    # Q_notebook — energia gerada pela fonte
-    q_notebook = calcular_energia_notebook(tempo_s, pw)
-
-    # Q_pcm — energia absorvida (calor sensível)
-    T_ini = float(temperatura_c[0])  if temperatura_c else 30.0
-    T_fin = float(temperatura_c[-1]) if temperatura_c else 30.0
-    q_pcm = calcular_energia_absorvida_pcm(
-        temperatura_c,
-        massa_kg=massa_pcm_kg,
-        calor_especifico=CALOR_ESPECIFICO_PCM,
-        temp_inicial_c=T_ini,
-        temp_final_c=T_fin,
+    # =========================
+    # DURAÇÃO
+    # =========================
+    duracao_s = (
+        float(tempo_s[-1] - tempo_s[0])
+        if len(tempo_s) >= 2
+        else float(delta_tempo)
     )
 
-    # Eficiência e tempo equivalente
-    eficiencia = calcular_eficiencia(q_pcm, q_notebook)
-    tempo_eq   = calcular_tempo_equivalente(q_pcm)
+    duracao_min = duracao_s / 60.0 if duracao_s > 0 else 0.0
 
-    # ΔT total
-    delta_t_c: float = (
+    # =========================
+    # DELTA T
+    # =========================
+    delta_t_c = (
         float(max(temperatura_c)) - float(min(temperatura_c))
-        if temperatura_c else 0.0
+        if temperatura_c
+        else 0.0
     )
 
-    # Taxa de aquecimento
-    taxa_c_min: Optional[float] = (
-        (delta_t_c / duracao_s) * 60.0 if duracao_s > 0.0 else None
-    )
+    # =========================
+    # MASSA PCM
+    # =========================
+    # capacidade térmica total:
+    # 54 kJ + 180 kJ = 234 kJ/kg
+    #
+    # ajuste experimental:
+    CAPACIDADE_PCM_J_KG = 198000.0
 
-    # Tempo até alvo
-    tempo_ate_alvo_s: Optional[float] = None
-    for t, temp in zip(tempo_s, temperatura_c):
-        if float(temp) >= temperatura_alvo_c:
-            tempo_ate_alvo_s = float(t)
-            break
+    massa_pcm_kg = energia_total / CAPACIDADE_PCM_J_KG
+    massa_pcm_g = massa_pcm_kg * 1000.0
 
-    # Tempo na faixa de fusão
-    tempo_atuacao_pcm_s = calcular_tempo_na_faixa_pcm(tempo_s, temperatura_c)
+    # =========================
+    # ERRO PERCENTUAL
+    # =========================
+    erro_percentual = (
+        abs(energia_total - energia_teorica)
+        / energia_teorica
+    ) * 100.0 if energia_teorica > 0 else 0.0
 
     return {
-        # Energias físicas corretas
-        "q_notebook_j":          q_notebook,
-        "q_pcm_j":               q_pcm,
-        "eficiencia_percent":     eficiencia,
-        "tempo_equivalente_s":   tempo_eq,
-        # Temporais
-        "duracao_s":             duracao_s,
-        "duracao_min":           duracao_min,
-        "tempo_ate_55c_s":       tempo_ate_alvo_s,
-        "tempo_atuacao_pcm_s":   tempo_atuacao_pcm_s,
-        # Térmicos
-        "pico_temp_c":           float(pico_temperatura),
-        "tempo_pico_s":          float(tempo_pico_temperatura),
-        "delta_t_c":             delta_t_c,
-        "taxa_aquecimento_c_min":taxa_c_min,
-        "temperatura_media":     float(temperatura_media),
-        # Legado (mantido para compatibilidade)
-        "energia_ideal_j":       float(energia_teorica),
-        "erro_percentual":       (
-            ((q_notebook - q_pcm) / q_notebook * 100.0) if q_notebook > 0 else None
-        ),
-        "potencia_media":        float(potencia_media),
-        "delta_tempo":           float(delta_tempo),
+
+        # =========================
+        # ENERGIA
+        # =========================
+        "q_notebook_j": float(energia_total),
+
+        # =========================
+        # PCM
+        # =========================
+        "massa_pcm_g": float(massa_pcm_g),
+
+        # =========================
+        # POTÊNCIA
+        # =========================
+        "potencia_media": float(potencia_media),
+
+        # =========================
+        # TEMPO
+        # =========================
+        "duracao_s": float(duracao_s),
+        "duracao_min": float(duracao_min),
+
+        # =========================
+        # TEMPERATURA
+        # =========================
+        "pico_temp_c": float(pico_temperatura),
+        "tempo_pico_s": float(tempo_pico_temperatura),
+        "delta_t_c": float(delta_t_c),
+        "temperatura_media": float(temperatura_media),
+
+        # =========================
+        # TEÓRICO
+        # =========================
+        "energia_ideal_j": float(energia_teorica),
+        "erro_percentual": float(erro_percentual),
     }
 
 

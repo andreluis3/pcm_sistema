@@ -93,8 +93,6 @@ class SensorPCMResult:
     # Tempo de estabilização (|dT/dt| < limiar contínuo)
     tempo_estabilizacao_s: float = 0.0
 
-    # Eficiência de redução térmica relativa — requer baseline SEM PCM
-    eficiencia_relativa: float | None = None
 
     # Redução absoluta de pico (°C) vs baseline
     reducao_pico_c: float | None = None
@@ -336,54 +334,6 @@ class PCMTemperatureSensor:
             erro_percentual=erro_percentual,
         )
 
-    # ── Comparação COM vs SEM PCM ─────────────────────────────────────────────
-
-    @staticmethod
-    def _aplicar_comparacao(
-        com_pcm: SensorPCMResult,
-        sem_pcm: SensorPCMResult,
-    ) -> None:
-        """
-        Calcula métricas comparativas e injeta em com_pcm.
-
-        Eficiência de redução térmica:
-          η = (T_pico_sem - T_pico_com) / T_pico_sem × 100
-
-        Atraso térmico:
-          tempo para atingir T_pico_com no ensaio SEM PCM
-          vs tempo para atingir T_pico_com no ensaio COM PCM
-        """
-        T_pico_sem = sem_pcm.pico_temperatura
-        T_pico_com = com_pcm.pico_temperatura
-
-        if T_pico_sem > 0:
-            com_pcm.eficiencia_relativa = max(
-                0.0,
-                (T_pico_sem - T_pico_com) / T_pico_sem * 100.0,
-            )
-        else:
-            com_pcm.eficiencia_relativa = 0.0
-
-        com_pcm.reducao_pico_c = T_pico_sem - T_pico_com
-
-        alvo = T_pico_com
-        t_sem_alvo = next(
-            (tv for tv, Tv in zip(sem_pcm.tempo_s, sem_pcm.temperatura_c) if Tv >= alvo),
-            None,
-        )
-        t_com_alvo = next(
-            (tv for tv, Tv in zip(com_pcm.tempo_s, com_pcm.temperatura_c) if Tv >= alvo),
-            None,
-        )
-        if t_sem_alvo is not None and t_com_alvo is not None:
-            com_pcm.atraso_termico_s = t_com_alvo - t_sem_alvo
-
-        com_pcm.baseline_tempo_s = sem_pcm.tempo_s
-        com_pcm.baseline_temp_c  = sem_pcm.temperatura_c
-        com_pcm.baseline_pico_c  = T_pico_sem
-
-
-# ── Funções auxiliares (física — NÃO alterar) ─────────────────────────────────
 
 def _classificar_estado(T: float) -> str:
     """

@@ -190,7 +190,10 @@ class SensorChartFrame(ctk.CTkFrame):
 
     def __init__(self, parent, **kwargs) -> None:
         super().__init__(parent, fg_color="transparent", **kwargs)
+        
         self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        
         self._canvases: list[FigureCanvasTkAgg] = []
         self._placeholder()
 
@@ -215,7 +218,7 @@ class SensorChartFrame(ctk.CTkFrame):
         T_sem = [T_ini + taxa * tv for tv in t_s]
         T_sem_sm = smooth_series(T_sem, window=11)
 
-        fig = Figure(figsize=(13.5, 9.5), dpi=100)
+        fig = Figure(figsize=(18, 10), dpi=110)
         fig.patch.set_facecolor(PANEL_COLOR)
         gs = fig.add_gridspec(2, 1, height_ratios=[1.1, 0.9], hspace=0.38,
                               left=0.08, right=0.96, top=0.94, bottom=0.07)
@@ -252,10 +255,6 @@ class SensorChartFrame(ctk.CTkFrame):
         ax.fill_between(t_min, T_sm, min(T_sm),
                         color=SENSOR_ACCENT, alpha=0.12, zorder=2)
 
-        if hasattr(r, "baseline_temp_c") and r.baseline_temp_c:
-            t_base = [v / 60.0 for v in r.baseline_tempo_s]
-            ax.plot(t_base, r.baseline_temp_c, color=COLOR_WITHOUT_PCM,
-                    linewidth=2.0, linestyle="--", alpha=0.8, label="Sem PCM")
 
         t_pico_min = float(r.tempo_pico_s) / 60.0
         ax.scatter([t_pico_min], [float(r.pico_temperatura)],
@@ -319,7 +318,7 @@ class SensorChartFrame(ctk.CTkFrame):
 
     def _placeholder(self) -> None:
         self._clear()
-        fig = Figure(figsize=(12.0, 6.0), dpi=100)
+        fig = Figure(figsize=(18.0, 10.0), dpi=100)
         fig.patch.set_facecolor(PANEL_COLOR)
         ax = fig.add_subplot(111)
         ax.set_facecolor(CARD_COLOR)
@@ -352,133 +351,6 @@ class SensorChartFrame(ctk.CTkFrame):
         self._clear()
         super().destroy()
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ComparisonChartFrame — Com PCM × Sem PCM
-# ─────────────────────────────────────────────────────────────────────────────
-
-class ComparisonChartFrame(ctk.CTkFrame):
-    """Gráfico comparativo usando extrapolação linear pré-fusão."""
-
-    def __init__(self, parent, **kwargs) -> None:
-        super().__init__(parent, fg_color="transparent", **kwargs)
-        self.grid_columnconfigure(0, weight=1)
-        self._canvases: list[FigureCanvasTkAgg] = []
-        self._placeholder()
-
-    def render(self, r) -> None:
-        self._clear()
-        t_s   = [float(v) for v in r.tempo_s]
-        T_s   = [float(v) for v in r.temperatura_c]
-        t_min = [v / 60.0 for v in t_s]
-        T_ini = float(r.temperatura_inicial)
-
-        # Taxa pré-fusão → curva sem PCM
-        taxa = self._taxa_pre_fusao(t_s, T_s)
-        T_sem = [T_ini + taxa * tv for tv in t_s]
-
-        T_com = smooth_series(T_s, window=11)
-        T_sem = smooth_series(T_sem, window=11)
-
-        pico_com = max(T_com)
-        pico_sem = max(T_sem)
-        delta_pico = pico_sem - pico_com
-
-        fig = Figure(figsize=(13.0, 6.0), dpi=100)
-        fig.patch.set_facecolor(PANEL_COLOR)
-        fig.subplots_adjust(left=0.08, right=0.96, top=0.91, bottom=0.10)
-
-        ax = fig.add_subplot(111)
-        _style(ax)
-        ax.set_title("Comparação — Com PCM × Sem PCM",
-                     color="#6EE7B7", fontsize=14, fontweight="bold", pad=12)
-
-        ax.axhspan(TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM,
-                   color=SENSOR_FUSION, alpha=0.10, zorder=1,
-                   label=f"Região fusão ({TEMP_FUSAO_PCM}–{TEMP_SATURACAO_PCM} °C)")
-
-        mask = [T_sem[i] > T_com[i] for i in range(len(t_min))]
-        ax.fill_between(t_min, T_sem, T_com, where=mask,
-                        color="#34D399", alpha=0.18, zorder=2,
-                        label="Calor absorvido pelo PCM")
-
-        ax.plot(t_min, T_com, color=COLOR_WITH_PCM,
-                linewidth=3.0, alpha=0.95, zorder=4,
-                label=f"Com PCM  ({pico_com:.1f} °C)")
-        ax.plot(t_min, T_sem, color=COLOR_WITHOUT_PCM,
-                linewidth=2.4, linestyle="--", alpha=0.85, zorder=4,
-                label=f"Sem PCM  ({pico_sem:.1f} °C, estimado)")
-
-        if delta_pico > 0.3:
-            idx = T_sem.index(pico_sem)
-            ax.annotate(f"Redução: {delta_pico:.1f} °C",
-                        xy=(t_min[idx], pico_com + delta_pico / 2),
-                        xytext=(t_min[idx] + 2, pico_com + delta_pico / 2 + 1.5),
-                        fontsize=10, color="#A3E635", fontweight="bold",
-                        arrowprops=dict(arrowstyle="->", color="#A3E635", lw=1.4),
-                        bbox=dict(boxstyle="round,pad=0.3", facecolor=CARD_COLOR,
-                                  edgecolor="#A3E635", alpha=0.85), zorder=8)
-
-        ax.text(0.02, 0.97, f"Δpico = {delta_pico:.1f} °C",
-                transform=ax.transAxes, color="#E5E7EB",
-                fontsize=10.5, fontweight="bold", va="top", zorder=10,
-                bbox=dict(boxstyle="round,pad=0.4", facecolor=CARD_COLOR,
-                          edgecolor="#065F46", alpha=0.90))
-
-        ax.set_xlabel("Tempo (min)", color=TEXT_PRIMARY, fontsize=11, fontweight="bold")
-        ax.set_ylabel("Temperatura (°C)", color=TEXT_PRIMARY, fontsize=11, fontweight="bold")
-        ax.legend(loc="upper left", fontsize=10, framealpha=0.92,
-                  facecolor=CARD_COLOR, edgecolor="#065F46", labelcolor=TEXT_PRIMARY)
-
-        self._finalize(fig)
-
-    @staticmethod
-    def _taxa_pre_fusao(t_s, T_s) -> float:
-        pre_t, pre_T = [], []
-        for t, T in zip(t_s, T_s):
-            if T >= TEMP_FUSAO_PCM:
-                break
-            pre_t.append(t); pre_T.append(T)
-        if len(pre_t) < 2:
-            return 0.0
-        dt = pre_t[-1] - pre_t[0]
-        return (pre_T[-1] - pre_T[0]) / dt if dt > 0 else 0.0
-
-    def _placeholder(self) -> None:
-        self._clear()
-        fig = Figure(figsize=(13.0, 5.5), dpi=100)
-        fig.patch.set_facecolor(PANEL_COLOR)
-        ax = fig.add_subplot(111)
-        ax.set_facecolor(CARD_COLOR)
-        ax.text(0.5, 0.5, "Gráfico comparativo após importar o log.",
-                ha="center", va="center", fontsize=13,
-                color=TEXT_SECONDARY, style="italic")
-        ax.set_xticks([]); ax.set_yticks([])
-        for s in ["top","right","bottom","left"]:
-            ax.spines[s].set_color("#065F46")
-        self._finalize(fig)
-
-    def _finalize(self, fig):
-        c = FigureCanvasTkAgg(fig, master=self)
-        c.get_tk_widget().grid(row=0, column=0, sticky="nsew")
-        c.draw_idle()
-        self._canvases.append(c)
-
-    def _clear(self):
-        for c in self._canvases:
-            try:
-                w = c.get_tk_widget()
-                if w.winfo_exists():
-                    w.destroy()
-            except Exception:
-                pass
-        self._canvases.clear()
-
-    def destroy(self):
-        self._clear()
-        super().destroy()
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # SensorPCMScreen — tela completa do sensor
 # ─────────────────────────────────────────────────────────────────────────────
@@ -500,6 +372,7 @@ class SensorPCMScreen(ctk.CTkFrame):
             scrollbar_button_hover_color=BORDER_COLOR)
         scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         scroll.grid_columnconfigure(0, weight=1)
+        scroll.grid_rowconfigure(2, weight=1)
 
         # Header
         hdr = ctk.CTkFrame(scroll, fg_color=PANEL_COLOR, corner_radius=18,
@@ -537,24 +410,13 @@ class SensorPCMScreen(ctk.CTkFrame):
 
         # Gráfico sensor
         self._chart = SensorChartFrame(scroll)
-        self._chart.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 16))
+        self._chart.grid(row=2, column=0, sticky="nsew", padx=12, pady=(0, 16))
+        
+        #scroll
+        scroll.grid_rowconfigure(2, weight=1)
+        scroll.grid_columnconfigure(0, weight=1)
 
-        # Comparação
-        comp_hdr = ctk.CTkFrame(scroll, fg_color=PANEL_COLOR, corner_radius=18,
-                                 border_width=1, border_color="#065F46")
-        comp_hdr.grid(row=3, column=0, sticky="ew", padx=12, pady=(8, 12))
-        comp_hdr.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(comp_hdr,
-            text="⚖  Comparação — Com PCM × Sem PCM",
-            font=("Inter", 22, "bold"), text_color="#6EE7B7",
-        ).grid(row=0, column=0, sticky="w", padx=24, pady=(16, 6))
-        ctk.CTkLabel(comp_hdr,
-            text="Curva 'Sem PCM' estimada por extrapolação da taxa pré-fusão.",
-            font=("Inter", 13), text_color=TEXT_SECONDARY,
-        ).grid(row=1, column=0, sticky="w", padx=24, pady=(0, 14))
-
-        self._comparison = ComparisonChartFrame(scroll)
-        self._comparison.grid(row=4, column=0, sticky="ew", padx=12, pady=(0, 28))
+        
 
     def _import(self) -> None:
         if not _SENSOR_OK:
@@ -582,4 +444,3 @@ class SensorPCMScreen(ctk.CTkFrame):
                 text_color=SUCCESS_COLOR)
         self._kpi.update_from_result(result)
         self._chart.render(result)
-        self._comparison.render(result)
