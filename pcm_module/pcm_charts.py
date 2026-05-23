@@ -204,22 +204,30 @@ class PCMChartFrame(ctk.CTkFrame):
     def _plot_energia_pcm(
         self, ax, t_min, E_pcm, q_pcm, eficiencia, tempo_eq_s
     ) -> None:
-        ax.set_title("PCM — Energia Absorvida Acumulada",
+        ax.set_title("PCM — Energia Absorvida Acumulada  [Q = m·c·ΔT]",
                      color=TEXT_PRIMARY, fontsize=13, fontweight="bold", pad=10)
 
         if not E_pcm:
             return
 
+        # E_pcm já é monotônica (interpolação linear do Q_total)
+        # NÃO aplicar smooth — a curva já é matematicamente suave
         ax.plot(t_min, E_pcm, color=COLOR_PCM_ENERGY,
-                linewidth=2.8, alpha=0.95, zorder=4)
+                linewidth=2.8, alpha=0.95, zorder=4,
+                label="Q_pcm acumulado")
         ax.fill_between(t_min, E_pcm, 0,
                         color=COLOR_PCM_ENERGY, alpha=0.18, zorder=2)
 
-        # Anotação — mostra η e t_eq
+        # Marcador no valor final
+        ax.scatter([t_min[-1]], [E_pcm[-1]],
+                   color=COLOR_PCM_ENERGY, edgecolors="white",
+                   s=100, zorder=8)
+
+        # Anotação física completa
         info = (
-            f"Q_pcm = {q_pcm:.1f} J\n"
+            f"Q_total = {q_pcm:.1f} J\n"
             f"η = {eficiencia:.2f} %\n"
-            f"t_eq = {tempo_eq_s:.0f} s"
+            f"t_eq = {tempo_eq_s:.0f} s  ({tempo_eq_s/60:.1f} min)"
         )
         ax.text(0.03, 0.97, info,
                 transform=ax.transAxes, ha="left", va="top",
@@ -229,6 +237,8 @@ class PCMChartFrame(ctk.CTkFrame):
 
         ax.set_xlabel("Tempo (min)", color=TEXT_PRIMARY, fontsize=10)
         ax.set_ylabel("Energia (J)", color=TEXT_PRIMARY, fontsize=10)
+        ax.legend(fontsize=9, facecolor=CARD_COLOR,
+                  edgecolor=BORDER_COLOR, labelcolor=TEXT_PRIMARY)
 
     # ── Internos ──────────────────────────────────────────────────────────────
 

@@ -27,14 +27,13 @@ from ui_styles import (
 from .pcm_kpi import ThermalCard   # componente visual compartilhado
 from .pcm_metrics import (
     TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM,
+    POTENCIA_NOTEBOOK_W, TEMPO_EXPERIMENTO_S,
+    Q_NOTEBOOK_REF_J, Q_PCM_ESTIMADO_J, EFICIENCIA_PCM_ESTIMADA,
     smooth_series,
-    calcular_energia_absorvida_pcm,
     calcular_eficiencia,
     calcular_tempo_equivalente,
-    calcular_energia_acumulada_pcm,
     calcular_dT_dt,
     calcular_estabilizacao,
-    MASSA_PCM_KG, CALOR_ESPECIFICO_PCM, Q_NOTEBOOK_REF_J,
 )
 
 try:
@@ -59,20 +58,31 @@ def _style(ax) -> None:
 _SENSOR_KPI_DEFS: list[tuple[str, str]] = [
     ("Temperatura Atual",
      "Temperatura mais recente registrada pelo sensor IR (°C)."),
-    ("Energia Absorvida",
-     "Q_pcm = m · c · ΔT  (J)  — calor sensível absorvido."),
-    ("Eficiência Térmica",
-     "η = Q_pcm / Q_notebook_ref × 100  (%).\nFração do calor do notebook desviada para o PCM."),
+    ("Energia Desviada do Notebook",
+     "Q_pcm = η × Q_notebook  (J)\n"
+     "Energia térmica absorvida pelo PCM DA FONTE (notebook).\n"
+     "NÃO é ΔT do sensor — é fração da energia do notebook desviada."),
+    ("Eficiência de Absorção",
+     "η = (m·c·ΔT_atuacao) / Q_notebook × 100  (%)\n"
+     "Fração da energia do notebook absorvida pelo PCM.\n"
+     "ΔT_atuacao = 7°C (faixa 53–60°C)  |  Q_notebook = 234 kJ"),
     ("Tempo Equivalente",
-     "t_eq = Q_pcm / P_notebook  (s).\nPor quanto tempo o PCM poderia alimentar o notebook."),
+     "t_eq = Q_pcm / P_notebook  (min)\n"
+     "Por quantos minutos o PCM pode dissipar sozinho a potência do notebook."),
     ("Estado do PCM",
-     "Sólido (<53°C) / Em Fusão (53–60°C) / Saturado (>60°C)."),
+     "Baseado na temperatura atual do sensor:\n"
+     "• Sólido  →  T < 53 °C\n"
+     "• Em Fusão  →  53–60 °C\n"
+     "• Saturado  →  T > 60 °C"),
     ("Tempo de Estabilização",
-     "Instante em que |dT/dt| < 0,01 °C/s por 30 s contínuos."),
-    ("ΔT do PCM",
-     "Variação de temperatura: T_atual − T_inicial (°C)."),
-    ("Calor Desviado",
-     "Q_pcm — mesma energia absorvida, contexto de dissipação passiva."),
+     "Instante em que |dT/dt| < 0,01 °C/s por 30 s contínuos.\n"
+     "Indica estabilização térmica do PCM."),
+    ("Energia Notebook (Ref)",
+     "Q_notebook = P × t = 50 W × 4680 s = 234 000 J\n"
+     "Energia total gerada pela fonte térmica durante o experimento."),
+    ("Potência Desviada Média",
+     "P_desviada = Q_pcm / t_experimento  (W)\n"
+     "Potência média absorvida pelo PCM ao longo do experimento."),
 ]
 
 _SENSOR_ACCENT = SENSOR_ACCENT   # azul — identidade sensor
@@ -95,52 +105,80 @@ class SensorKPIFrame(ctk.CTkFrame):
 
     def update_from_result(self, r) -> None:
         """
-        Calcula e exibe métricas do sensor.
-        Todos os cálculos delegados ao pcm_metrics — sem matemática aqui.
+        Exibe métricas do sensor IR.
+
+        MODELO CORRETO: absorção relativa da fonte térmica.
+        Q_pcm = EFICIENCIA_PCM_ESTIMADA × Q_NOTEBOOK_REF_J
+
+        O sensor fornece:
+          - temperatura atual (estado do PCM)
+          - tempo de estabilização
+          - validação da atuação na faixa de fusão
+
+        O sensor NÃO define sozinho Q_pcm via ΔT bruto.
         """
-        T_c = [float(v) for v in r.temperatura_c] if r.temperatura_c else []
-        T_ini = float(r.temperatura_inicial)
+        T_c    = [float(v) for v in r.temperatura_c] if r.temperatura_c else []
+        T_ini  = float(r.temperatura_inicial)
         T_atual = float(T_c[-1]) if T_c else T_ini
+        t_s    = [float(v) for v in r.tempo_s]
 
-        # Cálculos via pcm_metrics
-        q_pcm = calcular_energia_absorvida_pcm(
-            T_c, massa_kg=MASSA_PCM_KG,
-            calor_especifico=CALOR_ESPECIFICO_PCM,
-            temp_inicial_c=T_ini, temp_final_c=T_atual,
-        )
-        eta   = calcular_eficiencia(q_pcm, Q_NOTEBOOK_REF_J)
-        t_eq  = calcular_tempo_equivalente(q_pcm)
-        dT    = T_atual - T_ini
+        # ── Física principal: absorção relativa da fonte ───────────────────────
+        # Q_pcm = η × Q_notebook  (NÃO m·c·ΔT do sensor)
+        q_notebook = Q_NOTEBOOK_REF_J                          # 234 000 J
+        q_pcm      = Q_PCM_ESTIMADO_J                          # η × Q_notebook
+        eta        = EFICIENCIA_PCM_ESTIMADA * 100.0           # %
+        t_eq_s     = calcular_tempo_equivalente(q_pcm)         # s
+        p_desviada = q_pcm / TEMPO_EXPERIMENTO_S               # W médio absorvido
 
-        # Estabilização
-        t_s = [float(v) for v in r.tempo_s]
-        deriv = calcular_dT_dt(t_s, T_c)
+        # ── Sensor: apenas estado térmico e estabilização ─────────────────────
+        deriv   = calcular_dT_dt(t_s, T_c)
         t_estab = calcular_estabilizacao(t_s, deriv)
 
-        # Estado
         if T_atual < TEMP_FUSAO_PCM:
-            estado, cor = "PCM Sólido",    "#93C5FD"
+            estado, cor = "PCM Sólido",   "#93C5FD"
         elif T_atual <= TEMP_SATURACAO_PCM:
-            estado, cor = "PCM em Fusão",  "#FCD34D"
+            estado, cor = "PCM em Fusão", "#FCD34D"
         else:
-            estado, cor = "PCM Saturado",  "#F87171"
+            estado, cor = "PCM Saturado", "#F87171"
 
         def _s(key, text, *, color=TEXT_PRIMARY, sub=""):
-            c = self._cards.get(key)
-            if c:
-                c.set_value(text, color=color)
+            card = self._cards.get(key)
+            if card:
+                card.set_value(text, color=color)
                 if sub:
-                    c.set_sub(sub)
+                    card.set_sub(sub)
 
-        _s("Temperatura Atual",   f"{T_atual:.1f} °C")
-        _s("Energia Absorvida",   f"{q_pcm:.1f} J",   sub="Q = m·c·ΔT")
-        _s("Eficiência Térmica",  f"{eta:.2f} %",     sub="Q_pcm / Q_ref")
-        _s("Tempo Equivalente",   f"{t_eq:.1f} s",    sub=f"≈ {t_eq/60:.1f} min")
-        _s("Estado do PCM",       estado,              color=cor)
+        _s("Temperatura Atual",
+           f"{T_atual:.1f} °C",
+           sub=f"Inicial: {T_ini:.1f} °C  |  ΔT: {T_atual - T_ini:.2f} °C")
+
+        _s("Energia Desviada do Notebook",
+           f"{q_pcm / 1000:.2f} kJ",
+           sub=f"η × Q_notebook = {eta:.2f}% × {q_notebook/1000:.0f} kJ")
+
+        _s("Eficiência de Absorção",
+           f"{eta:.2f} %",
+           color="#FCD34D" if eta >= 3.0 else "#F87171",
+           sub="(m·c·ΔT_faixa) / Q_notebook")
+
+        _s("Tempo Equivalente",
+           f"{t_eq_s / 60:.1f} min",
+           sub=f"= {t_eq_s:.0f} s  |  Q_pcm / P_notebook")
+
+        _s("Estado do PCM",
+           estado, color=cor)
+
         _s("Tempo de Estabilização",
-           f"{t_estab/60:.1f} min" if t_estab else "Não estabilizou")
-        _s("ΔT do PCM",           f"{dT:.2f} °C")
-        _s("Calor Desviado",      f"{q_pcm:.1f} J")
+           f"{t_estab / 60:.1f} min" if t_estab else "Não estabilizou",
+           sub="Sensor: |dT/dt| < 0.01 °C/s por 30 s")
+
+        _s("Energia Notebook (Ref)",
+           f"{q_notebook / 1000:.0f} kJ",
+           sub=f"P × t = {POTENCIA_NOTEBOOK_W:.0f} W × {TEMPO_EXPERIMENTO_S:.0f} s")
+
+        _s("Potência Desviada Média",
+           f"{p_desviada:.2f} W",
+           sub=f"Q_pcm / t_exp = {q_pcm:.0f} / {TEMPO_EXPERIMENTO_S:.0f}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -157,28 +195,48 @@ class SensorChartFrame(ctk.CTkFrame):
         self._placeholder()
 
     def render(self, r) -> None:
+        """
+        Dois gráficos do sensor IR:
+            Superior: Temperatura do PCM (sensor) — curva térmica real
+            Inferior: Comparação Com PCM × Sem PCM (extrapolação linear)
+
+        NÃO calcula energia aqui — o sensor é validação térmica, não fonte
+        do cálculo energético principal.
+        """
         self._clear()
-        t_s  = [float(v) for v in r.tempo_s]
-        T    = [float(v) for v in r.temperatura_c]
-        T_sm = smooth_series(T, window=7)
+        t_s   = [float(v) for v in r.tempo_s]
+        T     = [float(v) for v in r.temperatura_c]
+        T_sm  = smooth_series(T, window=7)
         t_min = [v / 60.0 for v in t_s]
 
-        # Energia acumulada via pcm_metrics
-        E_pcm = calcular_energia_acumulada_pcm(
-            t_s, T,
-            massa_kg=MASSA_PCM_KG,
-            calor_especifico=CALOR_ESPECIFICO_PCM,
-        )
-        E_sm = smooth_series(E_pcm, window=11)
+        # Curva "sem PCM" — extrapolação linear da taxa pré-fusão
+        T_ini = float(r.temperatura_inicial)
+        taxa  = self._taxa_pre_fusao(t_s, T)
+        T_sem = [T_ini + taxa * tv for tv in t_s]
+        T_sem_sm = smooth_series(T_sem, window=11)
 
         fig = Figure(figsize=(13.5, 9.5), dpi=100)
         fig.patch.set_facecolor(PANEL_COLOR)
-        gs = fig.add_gridspec(2, 1, height_ratios=[1.1, 0.9], hspace=0.36,
+        gs = fig.add_gridspec(2, 1, height_ratios=[1.1, 0.9], hspace=0.38,
                               left=0.08, right=0.96, top=0.94, bottom=0.07)
 
         self._plot_temp(fig.add_subplot(gs[0]), t_min, T_sm, r)
-        self._plot_energia(fig.add_subplot(gs[1]), t_min, E_sm, r)
+        self._plot_comparacao(fig.add_subplot(gs[1]), t_min, T_sm, T_sem_sm)
         self._finalize(fig)
+
+    @staticmethod
+    def _taxa_pre_fusao(t_s: list[float], T_s: list[float]) -> float:
+        """Taxa de aquecimento pré-fusão em °C/s para construir curva sem PCM."""
+        pre_t, pre_T = [], []
+        for t, T in zip(t_s, T_s):
+            if T >= TEMP_FUSAO_PCM:
+                break
+            pre_t.append(t)
+            pre_T.append(T)
+        if len(pre_t) < 2:
+            return 0.0
+        dt = pre_t[-1] - pre_t[0]
+        return (pre_T[-1] - pre_T[0]) / dt if dt > 0 else 0.0
 
     def _plot_temp(self, ax, t_min, T_sm, r) -> None:
         _style(ax)
@@ -214,27 +272,50 @@ class SensorChartFrame(ctk.CTkFrame):
         ax.legend(fontsize=10, facecolor=CARD_COLOR,
                   edgecolor=BORDER_COLOR, labelcolor=TEXT_PRIMARY)
 
-    def _plot_energia(self, ax, t_min, E_sm, r) -> None:
+    def _plot_comparacao(self, ax, t_min, T_com, T_sem) -> None:
+        """
+        Gráfico de comparação: Com PCM × Sem PCM.
+        Mostra o benefício térmico real do PCM via extrapolação linear.
+        """
         _style(ax)
-        ax.set_title("PCM — Energia Absorvida Acumulada",
-                     color=TEXT_PRIMARY, fontsize=15, fontweight="bold", pad=14)
+        ax.set_title("Sensor IR — Comparação Térmica: Com PCM × Sem PCM",
+                     color=TEXT_PRIMARY, fontsize=14, fontweight="bold", pad=12)
 
-        ax.plot(t_min, E_sm, color=SENSOR_ENERGY,
-                linewidth=3.2, alpha=0.95, zorder=5)
-        ax.fill_between(t_min, E_sm, 0,
-                        color=SENSOR_ENERGY, alpha=0.16, zorder=2)
+        ax.axhspan(TEMP_FUSAO_PCM, TEMP_SATURACAO_PCM,
+                   color=SENSOR_FUSION, alpha=0.10, zorder=1,
+                   label=f"Faixa fusão {TEMP_FUSAO_PCM}–{TEMP_SATURACAO_PCM} °C")
+        ax.axhline(TEMP_FUSAO_PCM, color=SENSOR_FUSION,
+                   linewidth=0.8, linestyle="--", alpha=0.5, zorder=2)
 
-        q_total = float(r.energia_total_j) if hasattr(r, "energia_total_j") else (
-            E_sm[-1] if E_sm else 0.0)
-        ax.text(0.97, 0.96,
-                f"Q_pcm\n{q_total:.1f} J",
-                transform=ax.transAxes, ha="right", va="top",
-                fontsize=11, fontweight="bold", color=TEXT_PRIMARY,
-                bbox=dict(boxstyle="round,pad=0.45", facecolor=CARD_COLOR,
-                          edgecolor=SENSOR_ENERGY, alpha=0.92))
+        # Área de calor absorvido
+        mask = [T_sem[i] > T_com[i] for i in range(min(len(T_sem), len(T_com)))]
+        ax.fill_between(t_min[:len(T_com)], T_sem[:len(T_com)], T_com,
+                        where=mask, color="#34D399", alpha=0.20, zorder=2,
+                        label="Calor absorvido pelo PCM")
+
+        pico_com = max(T_com) if T_com else 0.0
+        pico_sem = max(T_sem) if T_sem else 0.0
+        delta    = pico_sem - pico_com
+
+        ax.plot(t_min[:len(T_com)], T_com, color=COLOR_WITH_PCM,
+                linewidth=2.8, alpha=0.95, zorder=4,
+                label=f"Com PCM  (pico: {pico_com:.1f} °C)")
+        ax.plot(t_min[:len(T_sem)], T_sem, color=COLOR_WITHOUT_PCM,
+                linewidth=2.2, linestyle="--", alpha=0.85, zorder=4,
+                label=f"Sem PCM  (estimado: {pico_sem:.1f} °C)")
+
+        if delta > 0.3:
+            ax.text(0.02, 0.97,
+                    f"Redução de pico: {delta:.1f} °C",
+                    transform=ax.transAxes, ha="left", va="top",
+                    fontsize=11, fontweight="bold", color="#A3E635",
+                    bbox=dict(boxstyle="round,pad=0.4", facecolor=CARD_COLOR,
+                              edgecolor="#A3E635", alpha=0.88))
 
         ax.set_xlabel("Tempo (min)", color=TEXT_PRIMARY, fontsize=11)
-        ax.set_ylabel("Energia (J)", color=TEXT_PRIMARY, fontsize=11)
+        ax.set_ylabel("Temperatura (°C)", color=TEXT_PRIMARY, fontsize=11)
+        ax.legend(loc="upper left", fontsize=10, facecolor=CARD_COLOR,
+                  edgecolor=BORDER_COLOR, labelcolor=TEXT_PRIMARY)
 
     def _placeholder(self) -> None:
         self._clear()

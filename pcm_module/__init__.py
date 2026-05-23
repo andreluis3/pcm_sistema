@@ -32,12 +32,12 @@ from .pcm_metrics import (
 )
 
 # ── Componentes de UI ─────────────────────────────────────────────────────────
-from pcm_module.pcm_screen import PCMCalcScreen
+from .pcm_screen import PCMCalcScreen
 from pcm_module.pcm_kpi import PCMKPIFrame
 from pcm_module.pcm_charts import PCMChartFrame
 from pcm_module.pcm_analysis import PCMAnalysisFrame
 from pcm_module.pcm_import import PCMImportFrame
-
+from .sensor_pcm_screen import SensorPCMScreen
 __all__ = [
     # Modelos
     "PCMResult",
@@ -63,4 +63,5 @@ __all__ = [
     "PCMChartFrame",
     "PCMAnalysisFrame",
     "PCMImportFrame",
+    "SensorPCMScreen",
 ]

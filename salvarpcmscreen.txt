@@ -1,0 +1,71 @@
+
+
+
+class PCMCalcScreen(ctk.CTkFrame):
+
+    def __init__(self, parent):
+        super().__init__(parent, fg_color=BG_COLOR)
+
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        scroll = ctk.CTkScrollableFrame(
+            self,
+            fg_color=BG_COLOR
+        )
+        scroll.grid(row=0, column=0, sticky="nsew")
+
+        scroll.grid_columnconfigure(0, weight=1)
+
+        # =========================================================
+        # DASHBOARD PRINCIPAL PCM
+        # =========================================================
+
+        self.import_frame = PCMImportFrame(scroll)
+        self.import_frame.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=20,
+            pady=(20, 10)
+        )
+
+        self.kpi_frame = PCMKPIFrame(scroll)
+        self.kpi_frame.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=20,
+            pady=10
+        )
+
+        self.chart_frame = PCMChartFrame(scroll)
+        self.chart_frame.grid(
+            row=2,
+            column=0,
+            sticky="ew",
+            padx=20,
+            pady=10
+        )
+
+        self.analysis_frame = PCMAnalysisFrame(scroll)
+        self.analysis_frame.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=20,
+            pady=(10, 30)
+        )
+
+        # =========================================================
+        # SENSOR IR
+        # =========================================================
+
+        self.sensor_screen = SensorPCMScreen(scroll)
+        self.sensor_screen.grid(
+            row=4,
+            column=0,
+            sticky="ew",
+            padx=20,
+            pady=(20, 40)
+        )
