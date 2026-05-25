@@ -70,7 +70,7 @@ class PCMChartFrame(ctk.CTkFrame):
 
         self._clear()
 
-        fig = Figure(figsize=(18.0, 8.5), dpi=110)
+        fig = Figure(figsize=(15.5, 7.0), dpi=110)
         fig.patch.set_facecolor(PANEL_COLOR)
 
         ax = fig.add_subplot(111)

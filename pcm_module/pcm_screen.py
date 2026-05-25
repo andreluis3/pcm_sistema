@@ -196,14 +196,22 @@ class PCMCalcScreen(ctk.CTkFrame):
         # =========================
         # KPI CARDS
         # =========================
+        
+        erro_percentual = (
+            abs(result.q_notebook_j - 234000.0)
+            / 234000.0
+        ) * 100.0
+
+        
         self.kpi_frame.update_kpis(
-            q_notebook_j=result.q_notebook_j,
-            q_pcm_j=result.q_pcm_j,
-            eficiencia=result.eficiencia,
-            tempo_eq_s=result.tempo_eq_s,
-            potencia_w=result.potencia_media,
-            duracao_min=result.delta_tempo / 60.0,
-        )
+        q_notebook_j=result.q_notebook_j,
+        massa_pcm_kg=1.0,
+        eficiencia=result.eficiencia,
+        erro_percentual=erro_percentual,
+        potencia_w=result.potencia_media,
+        duracao_min=result.delta_tempo / 60.0,
+    )
+    
 
         # =========================
         # GRÁFICOS

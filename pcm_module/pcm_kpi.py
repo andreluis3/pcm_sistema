@@ -117,7 +117,6 @@ class ThermalCard(ctk.CTkFrame):
 # ─────────────────────────────────────────────────────────────────────────────
 # DEFINIÇÃO DOS KPIs
 # ─────────────────────────────────────────────────────────────────────────────
-
 _PCM_KPI_DEFS: list[tuple[str, str]] = [
 
     (
@@ -126,8 +125,8 @@ _PCM_KPI_DEFS: list[tuple[str, str]] = [
     ),
 
     (
-        "Energia PCM",
-        "Energia absorvida pelo PCM.",
+        "Massa PCM",
+        "Massa total de PCM utilizada no experimento.",
     ),
 
     (
@@ -136,13 +135,13 @@ _PCM_KPI_DEFS: list[tuple[str, str]] = [
     ),
 
     (
-        "Tempo Equivalente",
-        "Tempo equivalente de dissipação.",
+        "Erro",
+        "Erro percentual entre valor teórico e valor medido.",
     ),
 
     (
         "Potência",
-        "Potência média do notebook.",
+        "Potência média absorvida pelo PCM.",
     ),
 
     (
@@ -150,7 +149,6 @@ _PCM_KPI_DEFS: list[tuple[str, str]] = [
         "Tempo total do experimento.",
     ),
 ]
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FRAME KPI
@@ -210,9 +208,9 @@ class PCMKPIFrame(ctk.CTkFrame):
         self,
         *,
         q_notebook_j: float,
-        q_pcm_j: float,
+        massa_pcm_kg: float,
         eficiencia: float,
-        tempo_eq_s: float,
+        erro_percentual: float,
         potencia_w: float,
         duracao_min: Optional[float],
     ) -> None:
@@ -224,12 +222,7 @@ class PCMKPIFrame(ctk.CTkFrame):
             sub="Energia gerada",
         )
 
-        # Energia PCM
-        self._set(
-            "Energia PCM",
-            _fmt_energia(q_pcm_j),
-            sub="Energia absorvida",
-        )
+        
 
         # Eficiência
         self._set(
@@ -239,11 +232,19 @@ class PCMKPIFrame(ctk.CTkFrame):
             sub="Eficiência térmica",
         )
 
-        # Tempo equivalente
+                # Massa PCM
         self._set(
-            "Tempo Equivalente",
-            _fmt_tempo(tempo_eq_s),
-            sub="Atuação equivalente",
+            "Massa PCM",
+            f"{massa_pcm_kg:.2f} kg",
+            sub="Massa utilizada",
+        )
+
+        # Erro
+        self._set(
+            "Erro",
+            f"{erro_percentual:.3f} %",
+            color="#F59E0B",
+            sub="Calculado vs medido",
         )
 
         # Potência
