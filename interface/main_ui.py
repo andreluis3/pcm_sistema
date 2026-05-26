@@ -9,7 +9,7 @@ from .view.export_page import ExportPage
 from .view.thermal_calculations_page import ThermalCalculationsPage
 from pcm_module.pcm_screen import PCMCalcScreen
 from services.hybrid_repository import HybridRepository
-
+import traceback
 from database.database_manager import DatabaseManager
 from ui_styles import FONT_SMALL, PAD_LARGE, PAD_NORMAL, THEME_COLORS
 from utils.user_session import clear_user
@@ -131,6 +131,7 @@ class MainUI(ctk.CTkFrame):
         # =========================
         self.pages = {
             "dashboard": DashboardTab,
+            "sensor": SensorPage,  # <- ADICIONE ISSO
             "materiais": MaterialsView,
             "experimentos": ExperimentsPage,
             "calculos": ThermalCalculationsPage,
@@ -148,8 +149,6 @@ class MainUI(ctk.CTkFrame):
             self.status_label.configure(
                 text=f"Sensor: Conectado | Última Temp: {temp:.1f} °C | Usuário: {self.username} | Banco: Ativo"
             )
-
-            self.user_label.configure(text=f"Usuário: {self.username}")
 
         except Exception as e:
             print("Erro update_status:", e)
@@ -182,9 +181,29 @@ class MainUI(ctk.CTkFrame):
             )
         else:
             try:
-                self.current_screen = page_class(self.main_frame, db_manager=self.db_manager)
+
+                self.current_screen = page_class(
+                    self.main_frame,
+                    db_manager=self.db_manager
+                )
+
             except TypeError:
-                self.current_screen = page_class(self.main_frame)
+
+                try:
+
+                    self.current_screen = page_class(
+                        self.main_frame
+                    )
+
+                except Exception as e:
+
+                    print("\nERRO AO ABRIR PÁGINA:")
+                    traceback.print_exc()
+
+            except Exception as e:
+
+                print("\nERRO GERAL AO CRIAR TELA:")
+                traceback.print_exc()
 
         if page_name == "dashboard":
             self._dashboard_ref = self.current_screen

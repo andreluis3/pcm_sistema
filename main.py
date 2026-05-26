@@ -92,7 +92,7 @@ def main():
     # LOGIN
     login = LoginWindow()
     login.mainloop()
-    print(f"Login: {login.logged_in}, Usuário: {login.username}")
+ 
     if not login.logged_in:
         return
 
