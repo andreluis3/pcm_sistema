@@ -7,3 +7,9 @@ requests
 fastapi
 uvicorn[standard]
 python-dotenv
+pyserial
+mysql-connector-python
+fastapi
+uvicorn
+pandas
+numpy

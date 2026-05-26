@@ -1,6 +1,4 @@
-import serial
+import serial.tools.list_ports
 
-print(serial)
-print(serial.__file__)
-
-print(serial.Serial)
+for p in serial.tools.list_ports.comports():
+    print(p.device, "-", p.description)

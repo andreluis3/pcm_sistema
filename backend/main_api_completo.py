@@ -41,7 +41,6 @@ def get_db():
     finally:
         conn.close()
 
-
 # ==================== MODELOS PYDANTIC ====================
 
 class ExperimentoBase(BaseModel):
