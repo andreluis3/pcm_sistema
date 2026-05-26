@@ -145,6 +145,20 @@ class MetricasResponse(BaseModel):
     delta_temperatura: Optional[float] = None
     heating_rate: Optional[float] = None
     energia_armazenada: Optional[float] = None
+    
+
+class LeituraSensor(BaseModel):
+
+    id_experimento: int
+
+    temperatura: float
+
+    timestamp_ms: Optional[int] = None
+
+    minutes: Optional[float] = None
+
+    source: Optional[str] = "serial"
+    
 
 
 def _stringify_datetime_fields(row: dict, *field_names: str) -> dict:
@@ -814,6 +828,104 @@ def health_check():
         return {"status": "erro", "detalhe": str(e)}, 500
 
 
+
+
+@app.post(
+    "/api/sensor/leitura",
+    tags=["Sensor"]
+)
+def receber_leitura_sensor(
+    leitura: LeituraSensor
+):
+
+    try:
+
+        with get_db() as conn:
+
+            cursor = conn.cursor()
+
+            query = """
+            INSERT INTO historico_leituras
+            (
+                id_experimento,
+                temperatura_lida,
+                timestamp_ms,
+                minutos,
+                fonte
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            """
+
+            cursor.execute(
+
+                query,
+
+                (
+                    leitura.id_experimento,
+                    leitura.temperatura,
+                    leitura.timestamp_ms,
+                    leitura.minutes,
+                    leitura.source
+                )
+            )
+
+            conn.commit()
+
+            return {
+
+                "status": "ok",
+
+                "message":
+                "Leitura salva"
+            }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+@app.get(
+    "/api/sensor/historico/{id_experimento}",
+    tags=["Sensor"]
+)
+def obter_historico_sensor(
+    id_experimento: int
+):
+
+    try:
+
+        with get_db() as conn:
+
+            cursor = conn.cursor(
+                dictionary=True
+            )
+
+            cursor.execute(
+                """
+                SELECT *
+                FROM historico_leituras
+                WHERE id_experimento = %s
+                ORDER BY data_leitura ASC
+                """,
+                (id_experimento,)
+            )
+
+            dados = cursor.fetchall()
+
+            return dados
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
