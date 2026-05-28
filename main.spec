@@ -23,13 +23,36 @@ a = Analysis(
         'numpy',
         'serial',
         'serial.tools.list_ports',
-        'customtkinter'
+        'customtkinter',
+        'tkinter'
+
+        hiddenimports=[
+    'uvicorn',
+    'fastapi',
+    'starlette',
+    'requests',
+    'pymysql',
+    'PIL',
+    'matplotlib',
+    'numpy',
+    'serial',
+    'serial.tools.list_ports',
+    'customtkinter',
+    'tkinter',
+    'sqlite3'
+],
     ],
 
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+
+    excludes=[
+        'pytest',
+        'jupyter',
+        'IPython'
+    ],
+
     noarchive=False,
     optimize=0,
 )
@@ -41,26 +64,39 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='main',
+
+    name='ThermalManager',
+
     debug=False,
+
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+
+    upx=False,
+
     console=False,
+
     disable_windowed_traceback=False,
+
     argv_emulation=False,
     target_arch=None,
+
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets\\logo.ico'],
+
+    icon='assets/logo.ico',
 )
 
 coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
+
     strip=False,
-    upx=True,
+
+    upx=False,
+
     upx_exclude=[],
-    name='main',
+
+    name='ThermalManager',
 )

@@ -1,7 +1,6 @@
 from pathlib import Path
 import sys
 
-#versao para criar o exe
 
 def resource_path(relative_path):
 
@@ -14,11 +13,8 @@ def resource_path(relative_path):
     return Path(base_path) / relative_path
 
 
-APP_DIR = Path.home() / "PCM_System"
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-APP_DIR.mkdir(
-    parents=True,
-    exist_ok=True
-)
+APP_DIR = BASE_DIR
 
-DB_PATH = APP_DIR / "pcmdata.db"
+DB_PATH = BASE_DIR / "database" / "pcmdata.db"
