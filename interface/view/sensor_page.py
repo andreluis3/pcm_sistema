@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import List
 from interface.view.charts import LineChart
 import customtkinter as ctk
-
-
+import traceback
+import tkinter as tk
 from sensor_module.serial_connection import SerialConnection
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -99,64 +99,90 @@ class MinimalLineChart:
 # =========================================================
 
 class SensorPage(ctk.CTkFrame):
-
-    # =====================================================
-    # INIT
-    # =====================================================
-
     def __init__(self, parent) -> None:
-        super().__init__(parent, fg_color=COLORS["bg"])
 
-        self.grid_columnconfigure(0, weight=3)
-        self.grid_columnconfigure(1, weight=1)
+        try:
 
-        self.grid_rowconfigure(2, weight=1)
+            super().__init__(parent, fg_color=COLORS["bg"])
 
-        # =========================
-        # STATE
-        # =========================
+            print("✅ SensorPage iniciando")
 
-        self.temperature_history: List[float] = []
-        self.sensor_logs: List[dict] = []
+            self.grid_columnconfigure(0, weight=3)
+            self.grid_columnconfigure(1, weight=1)
 
-        self.serial_connection = None
-        self.serial_running = False
-        self.serial_thread = None
+            self.grid_rowconfigure(2, weight=1)
 
-        self.connection_mode = ctk.StringVar(value="Serial")
+            # =========================
+            # STATE
+            # =========================
 
-        self.sensor_temperature_var = ctk.StringVar(value="-- °C")
+            self.temperature_history = []
+            self.sensor_logs = []
 
-        self.connection_status_var = ctk.StringVar(
-            value="🔴 Desconectado"
-        )
+            self.serial_connection = None
+            self.serial_running = False
+            self.serial_thread = None
 
-        self.last_reading_var = ctk.StringVar(
-            value="Última leitura: --"
-            
-        )
-        
-        self.sensor_manager = SensorManager(
-        on_temperature=self.update_temperature,
-        on_status=self.update_connection_status,
-        on_log=self.add_log
-        )
+            self.connection_mode = ctk.StringVar(value="Serial")
 
-        # =========================
-        # UI REFS
-        # =========================
+            self.sensor_temperature_var = ctk.StringVar(value="-- °C")
 
-        self._chart: LineChart | None = None
-        self._status_label = None
-        
-        # ✅ NOVO: Referências para seções dinâmicas
-        self.serial_section: ctk.CTkFrame | None = None
-        self.api_section: ctk.CTkFrame | None = None
-        self.mqtt_section: ctk.CTkFrame | None = None
-        self.simulation_section: ctk.CTkFrame | None = None
-        self.log_frame: ctk.CTkFrame | None = None
+            self.connection_status_var = ctk.StringVar(
+                value="🔴 Desconectado"
+            )
 
-        self._build_layout()
+            self.last_reading_var = ctk.StringVar(
+                value="Última leitura: --"
+            )
+
+            # =========================
+            # SENSOR MANAGER
+            # =========================
+
+            try:
+
+                self.sensor_manager = SensorManager(
+                    on_temperature=self.update_temperature,
+                    on_status=self.update_connection_status,
+                    on_log=self.add_log
+                )
+
+            except Exception:
+
+                import traceback
+
+                print("\nERRO AO CRIAR SENSOR MANAGER:")
+                traceback.print_exc()
+
+            # =========================
+            # UI REFS
+            # =========================
+
+            self._chart = None
+
+            self._status_label = None
+
+            self.serial_section = None
+            self.api_section = None
+            self.mqtt_section = None
+            self.simulation_section = None
+            self.log_frame = None
+
+            # =========================
+            # BUILD UI
+            # =========================
+
+            self._build_layout()
+
+            print("✅ SensorPage carregada")
+
+        except Exception:
+
+            print("\n❌ ERRO NA SENSOR PAGE\n")
+
+            traceback.print_exc()
+
+            raise
         
     def destroy(self):
 
@@ -326,7 +352,6 @@ class SensorPage(ctk.CTkFrame):
     # =====================================================
     # GRAPH
     # =====================================================
-
     def create_temperature_graph(self):
 
         graph_card = ctk.CTkFrame(
@@ -336,18 +361,15 @@ class SensorPage(ctk.CTkFrame):
             border_width=1,
             border_color=COLORS["border"]
         )
-        
-        self.gauge_arc = self.gauge_canvas.create_arc(
-                26,
-                26,
-                self.canvas_size - 26,
-                self.canvas_size - 26,
-                start=110,
-                extent=0,
-                style="arc",
-                width=8,
-                outline=COLORS["primary"]
-            )
+
+        graph_card.grid(
+            row=2,
+            column=0,
+            sticky="nsew",
+            padx=PAD_LARGE,
+            pady=(0, PAD_LARGE)
+        )
+
         graph_card.grid_columnconfigure(0, weight=1)
         graph_card.grid_rowconfigure(1, weight=1)
 
@@ -368,16 +390,13 @@ class SensorPage(ctk.CTkFrame):
 
         self._chart = MinimalLineChart(graph_card)
 
-        if self._chart is not None:
-
-            self._chart.widget.grid(
-                row=1,
-                column=0,
-                sticky="nsew",
-                padx=PAD_LARGE,
-                pady=PAD_NORMAL
-            )
-
+        self._chart.widget.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            padx=PAD_LARGE,
+            pady=PAD_NORMAL
+        )
 
     def update_temperature(self, data):
 
@@ -1280,19 +1299,29 @@ class SensorPage(ctk.CTkFrame):
     # =====================================================
     # LOG UI
     # =====================================================
-
     def add_log(self, message):
 
-        timestamp = datetime.now().strftime(
-            "%H:%M:%S"
-        )
+        try:
 
-        self.log_textbox.insert(
-            "end",
-            f"[{timestamp}] {message}\n"
-        )
+            timestamp = datetime.now().strftime(
+                "%H:%M:%S"
+            )
 
-        self.log_textbox.see("end")
+            print(f"[LOG] {message}")
+
+            if not hasattr(self, "log_textbox"):
+                return
+
+            self.log_textbox.insert(
+                "end",
+                f"[{timestamp}] {message}\n"
+            )
+
+            self.log_textbox.see("end")
+
+        except Exception:
+
+            traceback.print_exc()
 
     def on_connection_mode_changed(self, mode):
         """
@@ -1422,4 +1451,3 @@ class SensorPage(ctk.CTkFrame):
 
         return SerialConnection.get_available_ports()
     
-   
