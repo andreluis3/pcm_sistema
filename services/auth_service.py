@@ -1,8 +1,6 @@
 import sqlite3
 import hashlib
-from pathlib import Path
-
-DB_PATH = Path(__file__).parent.parent / "database" / "pcmdata.db"
+from utils.paths import DB_PATH
 
 
 class AuthService:

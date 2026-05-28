@@ -1,29 +1,18 @@
 from pathlib import Path
 import sys
-import os
 
-def resource_path(relative_path: str) -> str:
-    """
-    Caminho para assets no PyInstaller
-    """
+
+def resource_path(relative_path):
+
     try:
         base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.abspath(".")
 
-    return os.path.join(base_path, relative_path)
+    except Exception:
+        base_path = Path(".").absolute()
+
+    return Path(base_path) / relative_path
 
 
-# =========================
-# PASTA DO APP
-# =========================
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-APP_DIR = Path.home() / "PCM_System"
-
-APP_DIR.mkdir(exist_ok=True)
-
-# =========================
-# BANCO SQLITE
-# =========================
-
-DB_PATH = APP_DIR / "pcmdata.db"
+DB_PATH = BASE_DIR / "database" / "pcmdata.db"

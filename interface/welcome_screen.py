@@ -4,7 +4,8 @@ from pathlib import Path
 
 import customtkinter as ctk
 from PIL import Image
-
+from utils.paths import DB_PATH
+from utils.paths import resource_path
 from ui_styles import (
     FONT_HEADER,
     FONT_NORMAL,
@@ -48,7 +49,7 @@ class WelcomeScreen(ctk.CTk):
         card.grid_rowconfigure(5, weight=1)
         card.grid_columnconfigure(0, weight=1)
 
-        logo_path = Path(__file__).resolve().parent.parent / "assets" / "logo.png"
+        logo_path = resource_path("assets/logo.png")
         self._logo_image = ctk.CTkImage(Image.open(logo_path), size=(100, 100))
         logo = ctk.CTkLabel(card, image=self._logo_image, text="")
         logo.grid(row=1, column=0, pady=(PAD_LARGE, PAD_SMALL))
