@@ -13,20 +13,6 @@ a = Analysis(
     ],
 
     hiddenimports=[
-        'uvicorn',
-        'fastapi',
-        'starlette',
-        'requests',
-        'pymysql',
-        'PIL',
-        'matplotlib',
-        'numpy',
-        'serial',
-        'serial.tools.list_ports',
-        'customtkinter',
-        'tkinter'
-
-        hiddenimports=[
     'uvicorn',
     'fastapi',
     'starlette',
@@ -41,7 +27,7 @@ a = Analysis(
     'tkinter',
     'sqlite3'
 ],
-    ],
+
 
     hookspath=[],
     hooksconfig={},
