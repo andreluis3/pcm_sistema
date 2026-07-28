@@ -4,7 +4,10 @@ from pathlib import Path
 
 import customtkinter as ctk
 from PIL import Image
+<<<<<<< Updated upstream
 from utils.paths import DB_PATH
+=======
+>>>>>>> Stashed changes
 from utils.paths import resource_path
 from ui_styles import (
     FONT_HEADER,
@@ -50,7 +53,15 @@ class WelcomeScreen(ctk.CTk):
         card.grid_columnconfigure(0, weight=1)
 
         logo_path = resource_path("assets/logo.png")
+<<<<<<< Updated upstream
         self._logo_image = ctk.CTkImage(Image.open(logo_path), size=(100, 100))
+=======
+
+        self._logo_image = ctk.CTkImage(
+            Image.open(logo_path),
+            size=(100, 100)
+        )
+>>>>>>> Stashed changes
         logo = ctk.CTkLabel(card, image=self._logo_image, text="")
         logo.grid(row=1, column=0, pady=(PAD_LARGE, PAD_SMALL))
 

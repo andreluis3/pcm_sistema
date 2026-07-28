@@ -1,5 +1,10 @@
+<<<<<<< Updated upstream
 ('C:\\Users\\andressluis\\Desktop\\Algoritmos_IPT\\Bando de '
  'dados\\pcm_sistema\\build\\main\\ThermalManager.pkg',
+=======
+('C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+ 'Trabalho\\Documentos\\pcm_sistema\\build\\main\\main.pkg',
+>>>>>>> Stashed changes
  {'BINARY': True,
   'DATA': True,
   'EXECUTABLE': True,
@@ -11,6 +16,7 @@
   'SYMLINK': False},
  [('pyi-contents-directory _internal', '', 'OPTION'),
   ('PYZ-00.pyz',
+<<<<<<< Updated upstream
    'C:\\Users\\andressluis\\Desktop\\Algoritmos_IPT\\Bando de '
    'dados\\pcm_sistema\\build\\main\\PYZ-00.pyz',
    'PYZ'),
@@ -63,6 +69,64 @@
    'dados\\pcm_sistema\\main.py',
    'PYSOURCE')],
  'python311.dll',
+=======
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\PYZ-00.pyz',
+   'PYZ'),
+  ('struct',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\struct.pyc',
+   'PYMODULE'),
+  ('pyimod01_archive',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\pyimod01_archive.pyc',
+   'PYMODULE'),
+  ('pyimod02_importers',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\pyimod02_importers.pyc',
+   'PYMODULE'),
+  ('pyimod03_ctypes',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\pyimod03_ctypes.pyc',
+   'PYMODULE'),
+  ('pyimod04_pywin32',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\pyimod04_pywin32.pyc',
+   'PYMODULE'),
+  ('pyiboot01_bootstrap',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
+   'PYSOURCE'),
+  ('pyi_rth_inspect',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_inspect.py',
+   'PYSOURCE'),
+  ('pyi_rth_pkgutil',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pkgutil.py',
+   'PYSOURCE'),
+  ('pyi_rth_mplconfig',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_mplconfig.py',
+   'PYSOURCE'),
+  ('pyi_rth_setuptools',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_setuptools.py',
+   'PYSOURCE'),
+  ('pyi_rth__tkinter',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth__tkinter.py',
+   'PYSOURCE'),
+  ('pyi_rth_multiprocessing',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_multiprocessing.py',
+   'PYSOURCE'),
+  ('main',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\main.py',
+   'PYSOURCE')],
+ 'python313.dll',
+>>>>>>> Stashed changes
  True,
  False,
  False,

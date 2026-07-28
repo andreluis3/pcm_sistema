@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 ('C:\\Users\\andressluis\\Desktop\\Algoritmos_IPT\\Bando de '
  'dados\\pcm_sistema\\build\\main\\ThermalManager.exe',
  False,
@@ -5,6 +6,15 @@
  True,
  ['C:\\Users\\andressluis\\Desktop\\Algoritmos_IPT\\Bando de '
   'dados\\pcm_sistema\\assets/logo.ico'],
+=======
+('C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+ 'Trabalho\\Documentos\\pcm_sistema\\build\\main\\main.exe',
+ False,
+ False,
+ True,
+ ['C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+  'Trabalho\\Documentos\\pcm_sistema\\assets\\logo.ico'],
+>>>>>>> Stashed changes
  None,
  False,
  False,
@@ -31,6 +41,7 @@
  None,
  None,
  None,
+<<<<<<< Updated upstream
  'C:\\Users\\andressluis\\Desktop\\Algoritmos_IPT\\Bando de '
  'dados\\pcm_sistema\\build\\main\\ThermalManager.pkg',
  [('pyi-contents-directory _internal', '', 'OPTION'),
@@ -85,13 +96,82 @@
   ('main',
    'C:\\Users\\andressluis\\Desktop\\Algoritmos_IPT\\Bando de '
    'dados\\pcm_sistema\\main.py',
+=======
+ 'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+ 'Trabalho\\Documentos\\pcm_sistema\\build\\main\\main.pkg',
+ [('pyi-contents-directory _internal', '', 'OPTION'),
+  ('PYZ-00.pyz',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\PYZ-00.pyz',
+   'PYZ'),
+  ('struct',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\struct.pyc',
+   'PYMODULE'),
+  ('pyimod01_archive',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\pyimod01_archive.pyc',
+   'PYMODULE'),
+  ('pyimod02_importers',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\pyimod02_importers.pyc',
+   'PYMODULE'),
+  ('pyimod03_ctypes',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\pyimod03_ctypes.pyc',
+   'PYMODULE'),
+  ('pyimod04_pywin32',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\build\\main\\localpycs\\pyimod04_pywin32.pyc',
+   'PYMODULE'),
+  ('pyiboot01_bootstrap',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
+   'PYSOURCE'),
+  ('pyi_rth_inspect',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_inspect.py',
+   'PYSOURCE'),
+  ('pyi_rth_pkgutil',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pkgutil.py',
+   'PYSOURCE'),
+  ('pyi_rth_mplconfig',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_mplconfig.py',
+   'PYSOURCE'),
+  ('pyi_rth_setuptools',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_setuptools.py',
+   'PYSOURCE'),
+  ('pyi_rth__tkinter',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth__tkinter.py',
+   'PYSOURCE'),
+  ('pyi_rth_multiprocessing',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_multiprocessing.py',
+   'PYSOURCE'),
+  ('main',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\main.py',
+>>>>>>> Stashed changes
    'PYSOURCE')],
  [],
  False,
  False,
+<<<<<<< Updated upstream
  1779986549,
  [('runw.exe',
    'C:\\Users\\andressluis\\Desktop\\Algoritmos_IPT\\Bando de '
    'dados\\pcm_sistema\\venv\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\runw.exe',
    'EXECUTABLE')],
  'C:\\Users\\andressluis\\AppData\\Local\\Programs\\Python\\Python311\\python311.dll')
+=======
+ 1779841579,
+ [('runw.exe',
+   'C:\\Users\\André Luis\\OneDrive\\Ambiente de '
+   'Trabalho\\Documentos\\pcm_sistema\\.venv\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\runw.exe',
+   'EXECUTABLE')],
+ 'C:\\Users\\André Luis\\anaconda3\\python313.dll')
+>>>>>>> Stashed changes

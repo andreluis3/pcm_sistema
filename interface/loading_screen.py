@@ -6,8 +6,6 @@ import customtkinter as ctk
 from PIL import Image
 import tkinter as tk
 from utils.paths import resource_path
-
-
 from ui_styles import FONT_HEADER, FONT_NORMAL, PAD_SMALL, PAD_LARGE, THEME_COLORS
 
 
@@ -61,9 +59,9 @@ class LoadingScreen(ctk.CTk):
         container.grid_rowconfigure(0, weight=1)
         container.grid_rowconfigure(4, weight=1)
         container.grid_columnconfigure(0, weight=1)
-
-        logo_path = resource_path("assets/logo.png")
-        self._logo_image = ctk.CTkImage(Image.open(logo_path), size=(120, 120))
+        logo = Image.open(
+            resource_path("assets/logo.png")
+        )
         logo = ctk.CTkLabel(container, image=self._logo_image, text="")
         logo.grid(row=1, column=0, pady=(PAD_LARGE, PAD_SMALL))
 
